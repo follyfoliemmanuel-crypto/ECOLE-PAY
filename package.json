@@ -1,0 +1,53 @@
+{
+  "name": "ecole-pay",
+  "version": "1.0.0",
+  "private": true,
+  "author": {
+    "name": "ECOLE PAY",
+    "email": "contact@ecolepay.tg"
+  },
+  "description": "Gestion des frais de scolarité pour les écoles privées du Togo",
+  "main": "desktop/main.js",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit",
+    "db:push": "node scripts/push-schema.mjs",
+    "db:check": "node scripts/verifier-db.mjs",
+    "db:seed": "tsx scripts/seed-demo.ts",
+    "desktop:dev": "electron desktop/main.js",
+    "desktop:patch": "node desktop/preparer-build.cjs",
+    "desktop:pack": "electron-builder --win --dir --config desktop/electron-builder.yml",
+    "desktop:build": "node desktop/preparer-build.cjs && electron-builder --win --config desktop/electron-builder.yml",
+    "desktop:publish": "node desktop/preparer-build.cjs && electron-builder --win --config desktop/electron-builder.yml --publish always"
+  },
+  "dependencies": {
+    "bcryptjs": "3.0.3",
+    "electron-updater": "^6.8.11",
+    "jose": "6.2.17",
+    "jspdf": "4.2.1",
+    "jspdf-autotable": "5.0.9",
+    "lucide-react": "1.71.0",
+    "next": "15.5.29",
+    "pg": "8.23.1",
+    "qrcode": "^1.5.4",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.5",
+    "@types/node": "^24.0.0",
+    "@types/pg": "^8.11.10",
+    "@types/qrcode": "^1.5.6",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "electron": "^45.3.0",
+    "electron-builder": "^26.18.0",
+    "tailwindcss": "4.3.5",
+    "tsx": "4.23.15",
+    "typescript": "^5.9.0"
+  }
+}

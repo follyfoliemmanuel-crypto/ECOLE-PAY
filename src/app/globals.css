@@ -1,0 +1,283 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   ECOLE PAY — jetons de design
+   Palette : papier comptable chaud, bleu profond, statuts lisibles.
+   ========================================================================== */
+@theme {
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", monospace;
+
+  --color-canvas: #f4f1e8;
+  --color-surface: #ffffff;
+  --color-surface-2: #faf8f2;
+  --color-ink: #14212b;
+  --color-ink-2: #33424e;
+  --color-muted: #66737e;
+  --color-line: #e3ddcf;
+  --color-line-strong: #cfc7b5;
+
+  --color-brand: #0d3b66;
+  --color-brand-deep: #082b4b;
+  --color-brand-mid: #1d548040;
+  --color-brand-soft: #e9eff5;
+
+  --color-paye: #067a43;
+  --color-paye-soft: #e5f3ea;
+  --color-partiel: #a85a06;
+  --color-partiel-soft: #fbefdb;
+  --color-impaye: #c1121f;
+  --color-impaye-soft: #fbe6e7;
+
+  --color-ochre: #c98a2b;
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-canvas);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-synthesis-weight: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  ::selection {
+    background-color: var(--color-brand);
+    color: white;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font: inherit;
+  }
+
+  /* Champs date/nombre lisibles sur mobile */
+  input[type="number"] {
+    appearance: textfield;
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+}
+
+@layer components {
+  /* --- Cartes ------------------------------------------------------------ */
+  .card {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-lg);
+  }
+
+  /* --- Formulaires ------------------------------------------------------- */
+  .label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    margin-bottom: 6px;
+  }
+
+  .input {
+    width: 100%;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--color-line-strong);
+    background-color: var(--color-surface);
+    padding: 10px 12px;
+    font-size: 15px;
+    line-height: 1.4;
+    color: var(--color-ink);
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+
+  .input::placeholder {
+    color: #98a0a8;
+  }
+
+  .input:focus {
+    outline: none;
+    border-color: var(--color-brand);
+    box-shadow: 0 0 0 3px rgb(13 59 102 / 0.12);
+  }
+
+  .input:disabled {
+    background-color: var(--color-surface-2);
+    color: var(--color-muted);
+    cursor: not-allowed;
+  }
+
+  .input-erreur {
+    border-color: var(--color-impaye);
+  }
+
+  .aide {
+    font-size: 12px;
+    color: var(--color-muted);
+    margin-top: 6px;
+    line-height: 1.45;
+  }
+
+  .erreur {
+    font-size: 12.5px;
+    color: var(--color-impaye);
+    margin-top: 6px;
+  }
+
+  /* --- Tableaux ---------------------------------------------------------- */
+  .tableau {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+
+  .tableau thead th {
+    text-align: left;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--color-line);
+    white-space: nowrap;
+    background-color: var(--color-surface-2);
+  }
+
+  .tableau tbody td {
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--color-line);
+    vertical-align: middle;
+  }
+
+  .tableau tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  .tableau tbody tr:hover {
+    background-color: #faf8f2;
+  }
+
+  .chiffre {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.03em;
+  }
+
+  /* --- Motif « papier réglé » (panneaux de présentation) ---------------- */
+  .papier-regle {
+    background-image: repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 31px,
+      rgb(13 59 102 / 0.06) 31px,
+      rgb(13 59 102 / 0.06) 32px
+    );
+  }
+
+  /* --- Barre de progression segmentée ---------------------------------- */
+  .jauge {
+    display: flex;
+    gap: 3px;
+    overflow: hidden;
+    border-radius: 2px;
+  }
+
+  .jauge > span {
+    height: 8px;
+    flex: 1;
+    border-radius: 1px;
+    background-color: rgb(255 255 255 / 0.16);
+  }
+}
+
+/* --- Impression (reçus) ------------------------------------------------- */
+@media print {
+  .sans-impression {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+  body * {
+    visibility: hidden;
+  }
+  .zone-impression,
+  .zone-impression * {
+    visibility: visible;
+  }
+  .zone-impression {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 190mm;
+    border: 0 !important;
+    box-shadow: none !important;
+  }
+  .impression-carte {
+    border: 1px solid #ccc !important;
+    box-shadow: none !important;
+  }
+
+  /* Bulletins : plusieurs feuilles, donc pas de position absolue. */
+  .zone-bulletins {
+    position: static !important;
+    max-width: none !important;
+    width: 100% !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .bulletin-feuille {
+    break-after: page;
+    page-break-after: always;
+    margin: 0 !important;
+    border: 1px solid #ccc !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+  }
+
+  .bulletin-feuille:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
