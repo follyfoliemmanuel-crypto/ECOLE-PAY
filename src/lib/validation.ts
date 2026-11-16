@@ -35,6 +35,16 @@ export const schemaRecherche = z.object({
 const UUID =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
+/**
+ * Slug d'école utilisé par le portail public (`/parent/nom-de-lecole`).
+ *
+ * Le schéma SQL ne produit que des minuscules, chiffres et tirets. Refuser le
+ * reste évite de faire travailler la base sur des chaînes arbitraires.
+ */
+export function slugValide(valeur: string): boolean {
+  return /^[a-z0-9-]{1,80}$/.test(valeur);
+}
+
 /** Identifiant technique (élève, classe, frais…) : UUID v1 à v5 uniquement. */
 export const schemaUuid = z
   .string()

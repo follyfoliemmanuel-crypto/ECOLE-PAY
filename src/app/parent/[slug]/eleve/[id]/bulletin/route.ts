@@ -10,6 +10,7 @@ import {
 import { construirePdfBulletin } from "@/lib/pdf-bulletin";
 import { slugifier } from "@/lib/portail";
 import { estUuid } from "@/lib/actions/helpers";
+import { slugValide } from "@/lib/validation";
 import type { Trimestre } from "@/lib/types";
 
 function trimestreValide(valeur: string | null): Trimestre | null {
@@ -26,7 +27,7 @@ export async function GET(
   },
 ) {
   const { slug, id } = await params;
-  if (!estUuid(id)) {
+  if (!slugValide(slug) || !estUuid(id)) {
     return new NextResponse("Bulletin introuvable.", { status: 404 });
   }
 

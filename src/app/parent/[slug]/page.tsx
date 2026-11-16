@@ -18,6 +18,7 @@ import {
 } from "@/lib/data/portail";
 import { RechercheElevePortail } from "@/components/portail/recherche-eleve";
 import { estUuid } from "@/lib/actions/helpers";
+import { slugValide } from "@/lib/validation";
 
 type Parametres = { slug: string };
 
@@ -44,6 +45,7 @@ export default async function PagePortailEcole({
   searchParams: Promise<{ classe?: string }>;
 }) {
   const { slug } = await params;
+  if (!slugValide(slug)) notFound();
   const ecole = await ecolePublique(slug);
   if (!ecole) notFound();
 

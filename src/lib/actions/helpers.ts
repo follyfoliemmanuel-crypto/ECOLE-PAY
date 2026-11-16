@@ -1,8 +1,19 @@
 /** Petites aides partagées par les Server Actions. */
 
+/**
+ * Longueur maximale d'un champ texte issu d'un formulaire.
+ *
+ * Borne de sécurité : un client malveillant peut envoyer un champ de plusieurs
+ * centaines de kilo-octets. Aucun champ réel (nom, téléphone, modèle de reçu,
+ * adresse) n'approche cette limite.
+ */
+const LONGUEUR_TEXTE_MAX = 2000;
+
 export function texte(donnees: FormData, nom: string): string {
   const valeur = donnees.get(nom);
-  return typeof valeur === "string" ? valeur.trim() : "";
+  return typeof valeur === "string"
+    ? valeur.trim().slice(0, LONGUEUR_TEXTE_MAX)
+    : "";
 }
 
 export function entier(donnees: FormData, nom: string): number {

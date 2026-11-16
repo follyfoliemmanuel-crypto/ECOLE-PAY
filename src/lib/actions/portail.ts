@@ -26,6 +26,7 @@ import {
   whatsappCloudConfigure,
 } from "../whatsapp-cloud";
 import { estUuid, messageErreurBdd, texte } from "./helpers";
+import { slugValide } from "../validation";
 import type { ResultatAction, Trimestre } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -71,7 +72,7 @@ export async function rechercherElevesPortail(
     return { ok: false, eleves: vide, message: MESSAGE_RECHERCHE_COURTE };
   }
 
-  if (!slug || !estUuid(classeId)) {
+  if (!slug || !slugValide(slug) || !estUuid(classeId)) {
     return { ok: false, eleves: vide, message: MESSAGE_AUCUN_ELEVE };
   }
 

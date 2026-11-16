@@ -48,6 +48,26 @@ export function FormulaireEleve({
   const [photo, setPhoto] = useState<string | null>(eleve?.photo_url ?? null);
   const [retirerPhoto, setRetirerPhoto] = useState(false);
 
+  // Aperçu local de la photo : l'URL blob retient le fichier en mémoire tant
+  // qu'elle n'est pas libérée. On la révoque dès qu'elle est remplacée.
+  const apercuPhoto = useRef<string | null>(null);
+
+  function remplacerApercu(url: string | null) {
+    if (apercuPhoto.current) {
+      URL.revokeObjectURL(apercuPhoto.current);
+      apercuPhoto.current = null;
+    }
+    if (url?.startsWith("blob:")) apercuPhoto.current = url;
+    setPhoto(url);
+  }
+
+  useEffect(
+    () => () => {
+      if (apercuPhoto.current) URL.revokeObjectURL(apercuPhoto.current);
+    },
+    [],
+  );
+
   useEffect(() => {
     if (!etat?.success) return;
     setMessage(etat.success);
@@ -55,7 +75,7 @@ export function FormulaireEleve({
       formulaire.current?.reset();
       setClasseId(classes[0]?.id ?? "");
       setTypeInscription("NOUVEAU");
-      setPhoto(null);
+      remplacerApercu(null);
       setRetirerPhoto(false);
     }
   }, [etat, creation, classes]);
@@ -112,7 +132,11 @@ export function FormulaireEleve({
             onChange={(evenement) => {
               const fichier = evenement.target.files?.[0];
               setRetirerPhoto(false);
-              setPhoto(fichier ? URL.createObjectURL(fichier) : (eleve?.photo_url ?? null));
+              remplacerApercu(
+                fichier
+                  ? URL.createObjectURL(fichier)
+                  : (eleve?.photo_url ?? null),
+              );
             }}
             className="block w-full cursor-pointer text-[12px] text-muted file:mr-3 file:cursor-pointer file:rounded-sm file:border file:border-line-strong file:bg-surface file:px-3 file:py-1.5 file:text-[12px] file:font-semibold file:text-ink hover:file:bg-surface-2"
           />
@@ -131,8 +155,8 @@ export function FormulaireEleve({
               type="button"
               onClick={() => {
                 setRetirerPhoto((valeur) => !valeur);
-                if (!retirerPhoto) setPhoto(null);
-                else setPhoto(eleve?.photo_url ?? null);
+                if (!retirerPhoto) remplacerApercu(null);
+                else remplacerApercu(eleve?.photo_url ?? null);
               }}
               className="mt-1 text-[11px] font-semibold text-impaye hover:underline"
             >

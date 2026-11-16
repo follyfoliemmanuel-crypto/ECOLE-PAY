@@ -28,6 +28,7 @@ import {
   lienBulletinPdf,
 } from "@/lib/portail";
 import { estUuid } from "@/lib/actions/helpers";
+import { slugValide } from "@/lib/validation";
 import { cx } from "@/lib/cx";
 import type { Trimestre } from "@/lib/types";
 
@@ -68,7 +69,7 @@ export default async function PageElevePortail({
   searchParams: Promise<{ trimestre?: string }>;
 }) {
   const { slug, id } = await params;
-  if (!estUuid(id)) notFound();
+  if (!slugValide(slug) || !estUuid(id)) notFound();
 
   const ecole = await ecolePublique(slug);
   if (!ecole) notFound();
