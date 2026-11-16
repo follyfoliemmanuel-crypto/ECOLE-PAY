@@ -15,7 +15,12 @@ import {
   verifierMotDePasseSuperAdmin,
 } from "../auth";
 import { estEmailSuperAdmin } from "../activation";
-import { envoyerEmail, modeleEmailReinitialisation } from "../email";
+import {
+  envoyerEmail,
+  etatConfigurationEmail,
+  messageConfigurationEmail,
+  modeleEmailReinitialisation,
+} from "../email";
 import { normaliserTelephone, formatTelephone } from "../format";
 import { anneeScolaire } from "../mois";
 import {
@@ -34,11 +39,12 @@ import {
   type EssaiExistant,
 } from "../securite";
 import { estEmail, messageErreurBdd, texte } from "./helpers";
-
 export type EtatAuth = {
   error?: string;
   success?: string;
   lien?: string;
+  /** Envoi d'email impossible : à afficher sans bloquer l'utilisateur. */
+  avertissement?: string;
   /** Captcha exigé après 3 échecs de connexion. */
   captcha?: { question: string; token: string };
 } | null;
@@ -466,6 +472,17 @@ export async function demanderReinitialisation(
   const message =
     "Si un compte correspond à cet email, vous recevrez un lien de réinitialisation dans quelques instants.";
 
+  const developpement = process.env.NODE_ENV !== "production";
+
+  // La configuration email est vérifiée AVANT de chercher le compte : le
+  // résultat ne dépend pas de l'adresse saisie, donc l'annoncer ne révèle pas
+  // si un compte existe.
+  const config = await etatConfigurationEmail();
+  if (config.etat !== "ok" && !developpement) {
+    return { error: messageConfigurationEmail(config) };
+  }
+  const emailIndisponible = config.etat !== "ok";
+
   const utilisateur = await uneLigne<{ id: string; nom: string }>(
     `select id, nom from users where lower(email) = $1 and actif = true`,
     [email],
@@ -487,16 +504,24 @@ export async function demanderReinitialisation(
   const base = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const lien = `${base}/reinitialiser?jeton=${jeton}`;
 
-  await envoyerEmail({
-    to: email,
-    subject: "Réinitialisation de votre mot de passe — ECOLE PAY",
-    html: modeleEmailReinitialisation(lien, utilisateur.nom),
-  });
+  const envoi = emailIndisponible
+    ? ({ ok: false } as const)
+    : await envoyerEmail({
+        to: email,
+        subject: "Réinitialisation de votre mot de passe — ECOLE PAY",
+        html: modeleEmailReinitialisation(lien, utilisateur.nom),
+      });
 
   // En développement, le lien est affiché pour pouvoir tester sans email.
   return {
     success: message,
-    lien: process.env.NODE_ENV !== "production" ? lien : undefined,
+    lien: developpement ? lien : undefined,
+    // Un échec d'envoi côté configuration n'apprend rien sur le compte : on le
+    // signale au lieu de laisser croire que l'email est parti.
+    avertissement:
+      emailIndisponible || !envoi.ok
+        ? "L'email n'a pas pu être envoyé. Utilisez le lien ci-dessous ou contactez l'administrateur."
+        : undefined,
   };
 }
 

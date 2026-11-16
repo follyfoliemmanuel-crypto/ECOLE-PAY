@@ -348,6 +348,7 @@ export function FormulaireMotDePasseOublie() {
 
       {etat?.error && <Alerte>{etat.error}</Alerte>}
       {etat?.success && <Alerte ton="succes">{etat.success}</Alerte>}
+      {etat?.avertissement && <Alerte ton="info">{etat.avertissement}</Alerte>}
       {etat?.lien && (
         <div className="rounded-sm border border-brand/20 bg-brand-soft p-3">
           <p className="text-[12px] font-semibold text-brand">

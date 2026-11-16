@@ -132,6 +132,29 @@ Ne lancez jamais `db:seed` sur la base de production.
 > Les fonctions serverless réutilisent un petit pool (`max: 5`). Avec Neon,
 > utilisez impérativement la connexion *pooled*.
 
+### Activer réellement les emails (Resend)
+
+Une clé API valide ne suffit pas : Resend refuse l'envoi si le **domaine de
+`EMAIL_FROM` n'est pas vérifié**, avec une erreur `403 The domain is not
+verified`. Marche à suivre :
+
+1. Resend → **Domains** → *Add domain* → `ecolepay.tg`.
+2. Recopier chez le registrar les enregistrements **SPF**, **DKIM** et
+   **DMARC** fournis, puis attendre le statut *Verified*.
+3. Garder `EMAIL_FROM="ECOLE PAY <noreply@ecolepay.tg>"` : l'envoi fonctionne
+   alors vers n'importe quel destinataire.
+
+Sans domaine vérifié, seul le **domaine sandbox** `onboarding@resend.dev`
+fonctionne, et **uniquement vers l'adresse du titulaire du compte Resend** :
+
+```env
+EMAIL_FROM="ECOLE PAY <onboarding@resend.dev>"
+```
+
+L'inscription sur Resend doit donc être faite avec l'adresse qui recevra les
+tests. L'application vérifie cette configuration avant l'envoi et affiche un
+message clair au lieu de faire croire que l'email est parti.
+
 ---
 
 ## Architecture multi-école
