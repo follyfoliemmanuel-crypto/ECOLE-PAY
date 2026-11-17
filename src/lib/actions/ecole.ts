@@ -11,6 +11,8 @@ import {
 import { estEmail, estUuid, messageErreurBdd, texte } from "./helpers";
 import { compterUtilisateurs, limitesOffre } from "../data/ecole";
 import { aFonctionnalite, offreEffective } from "../offres";
+import { journaliser } from "../journal";
+import { validerMotDePasse } from "../mot-de-passe";
 import type { ResultatAction, Role } from "../types";
 
 /** Vérifie que l'appelant est bien le directeur de l'école. */
@@ -140,9 +142,8 @@ export async function ajouterUtilisateur(
 
   if (nom.length < 2) return { error: "Indiquez le nom du nouvel utilisateur." };
   if (!estEmail(email)) return { error: "Cet email n'est pas valide." };
-  if (motDePasse.length < 8) {
-    return { error: "Le mot de passe doit contenir au moins 8 caractères." };
-  }
+  const problemeMotDePasse = validerMotDePasse(motDePasse);
+  if (problemeMotDePasse) return { error: problemeMotDePasse };
 
   const existe = await uneLigne<{ existe: boolean }>(
     `select exists(
@@ -165,6 +166,14 @@ export async function ajouterUtilisateur(
     return { error: messageErreurBdd(erreur) };
   }
 
+  await journaliser({
+    action: "COMPTE_CREE",
+    libelle: `${nom} (${role}) a été ajouté à l'équipe.`,
+    auteur: session.email ?? session.identifiant ?? session.userId,
+    cible: email,
+    details: { role, ecole: session.ecole.nom },
+  });
+
   revalidatePath("/app/parametres");
   return {
     success: `${nom} peut maintenant se connecter avec son email et enregistrer des paiements.`,
@@ -182,8 +191,15 @@ export async function basculerUtilisateur(donnees: FormData): Promise<void> {
   const id = texte(donnees, "id");
   if (!estUuid(id) || id === session.userId) return;
 
-  const cible = await uneLigne<{ role: string; actif: boolean }>(
-    `select role, actif from users where id = $1 and ecole_id = $2`,
+  const cible = await uneLigne<{
+    role: string;
+    actif: boolean;
+    nom: string;
+    email: string | null;
+    identifiant: string | null;
+  }>(
+    `select role, actif, nom, email, identifiant
+       from users where id = $1 and ecole_id = $2`,
     [id, session.ecoleId],
   );
   if (!cible) return;
@@ -205,6 +221,14 @@ export async function basculerUtilisateur(donnees: FormData): Promise<void> {
       where id = $1 and ecole_id = $2`,
     [id, session.ecoleId],
   );
+  await journaliser({
+    action: cible.actif ? "COMPTE_DESACTIVE" : "COMPTE_REACTIVE",
+    libelle: `${cible.nom} a été ${cible.actif ? "désactivé" : "réactivé"}.`,
+    auteur: session.email ?? session.identifiant ?? session.userId,
+    cible: cible.email ?? cible.identifiant ?? cible.nom,
+    cibleId: id,
+    details: { role: cible.role, ecole: session.ecole.nom },
+  });
   revalidatePath("/app/parametres");
 }
 
@@ -222,8 +246,9 @@ export async function changerMotDePasse(
   const nouveau = texte(donnees, "nouveau");
   const confirmation = texte(donnees, "confirmation");
 
-  if (nouveau.length < 8) {
-    return { error: "Le nouveau mot de passe doit contenir au moins 8 caractères." };
+  const problemeMotDePasse = validerMotDePasse(nouveau);
+  if (problemeMotDePasse) {
+    return { error: problemeMotDePasse };
   }
   if (nouveau !== confirmation) {
     return { error: "Les deux nouveaux mots de passe ne sont pas identiques." };
@@ -248,6 +273,13 @@ export async function changerMotDePasse(
 
   // L'appareil courant reste connecté, les autres sessions sont invalidées.
   await creerSession(session.userId, ligne.token_version + 1);
+  await journaliser({
+    action: "MOT_DE_PASSE_CHANGE",
+    libelle: "Mot de passe modifié depuis les paramètres.",
+    auteur: session.email ?? session.identifiant ?? session.userId,
+    cible: session.nom,
+    cibleId: session.userId,
+  });
   revalidatePath("/app/parametres");
   return { success: "Votre mot de passe a été mis à jour." };
 }

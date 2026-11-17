@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { NOM_COOKIE_SESSION } from "@/lib/cookies";
 
 /**
  * Protection rapide des routes /app.
@@ -7,7 +8,7 @@ import { jwtVerify } from "jose";
  * côté serveur dans chaque page via getSession().
  */
 export async function middleware(requete: NextRequest) {
-  const jeton = requete.cookies.get("ecolepay_session")?.value;
+  const jeton = requete.cookies.get(NOM_COOKIE_SESSION)?.value;
 
   if (!jeton) {
     const url = new URL("/connexion", requete.url);
@@ -26,7 +27,7 @@ export async function middleware(requete: NextRequest) {
   } catch {
     const url = new URL("/connexion", requete.url);
     const reponse = NextResponse.redirect(url);
-    reponse.cookies.delete("ecolepay_session");
+    reponse.cookies.delete(NOM_COOKIE_SESSION);
     return reponse;
   }
 }

@@ -5,6 +5,8 @@ import { hacherMotDePasse, getSession } from "../auth";
 import { sql, transaction, uneLigne } from "../db";
 import { peut } from "../offres";
 import { formatFCFA, normaliserTelephone } from "../format";
+import { journaliser } from "../journal";
+import { validerMotDePasse } from "../mot-de-passe";
 import type { ResultatAction, Session } from "../types";
 import { estEmail, estUuid, messageErreurBdd, texte } from "./helpers";
 
@@ -225,12 +227,8 @@ export async function creerCompteProf(
     };
   }
 
-  if (motDePasse.length < 6) {
-    return { error: "Le mot de passe doit contenir au moins 6 caractères." };
-  }
-  if (motDePasse.length > 72) {
-    return { error: "Le mot de passe ne doit pas dépasser 72 caractères." };
-  }
+  const problemeMotDePasse = validerMotDePasse(motDePasse);
+  if (problemeMotDePasse) return { error: problemeMotDePasse };
 
   if (await identifiantDejaPris(identifiant)) {
     return {
@@ -271,6 +269,14 @@ export async function creerCompteProf(
     return { error: messageErreurBdd(erreur) };
   }
 
+  await journaliser({
+    action: "PROF_CREE",
+    libelle: `Compte professeur créé pour ${nomComplet}.`,
+    auteur: session.email ?? session.identifiant ?? session.userId,
+    cible: identifiant,
+    details: { nom: nomComplet, ecole: session.ecole.nom },
+  });
+
   rafraichirProfs();
   return {
     success:
@@ -307,11 +313,9 @@ export async function reinitialiserAccesProf(
         "L'identifiant doit contenir 3 à 30 caractères : lettres sans accent, chiffres, point, tiret ou souligné.",
     };
   }
-  if (motDePasse && motDePasse.length < 6) {
-    return { error: "Le mot de passe doit contenir au moins 6 caractères." };
-  }
-  if (motDePasse.length > 72) {
-    return { error: "Le mot de passe ne doit pas dépasser 72 caractères." };
+  if (motDePasse) {
+    const problemeMotDePasse = validerMotDePasse(motDePasse);
+    if (problemeMotDePasse) return { error: problemeMotDePasse };
   }
 
   const prof = await uneLigne<{
@@ -562,6 +566,15 @@ export async function supprimerProf(donnees: FormData): Promise<ResultatAction> 
   } catch (erreur) {
     return { error: messageErreurBdd(erreur) };
   }
+
+  await journaliser({
+    action: "PROF_SUPPRIME",
+    libelle: `Professeur supprimé : ${prof.prenom} ${prof.nom}.`,
+    auteur: session.email ?? session.identifiant ?? session.userId,
+    cible: `${prof.prenom} ${prof.nom}`,
+    cibleId: id,
+    details: { ecole: session.ecole.nom },
+  });
 
   rafraichirProfs();
   return { success: `${prof.prenom} ${prof.nom} a été supprimé.` };

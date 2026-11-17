@@ -17,6 +17,7 @@
     "db:push": "node scripts/push-schema.mjs",
     "db:check": "node scripts/verifier-db.mjs",
     "db:seed": "tsx scripts/seed-demo.ts",
+    "2fa:desactiver": "node scripts/desactiver-2fa.mjs",
     "desktop:dev": "electron desktop/main.js",
     "desktop:patch": "node desktop/preparer-build.cjs",
     "desktop:pack": "electron-builder --win --dir --config desktop/electron-builder.yml",

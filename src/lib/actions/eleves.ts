@@ -8,6 +8,7 @@ import { normaliserTelephone } from "../format";
 import { compterElevesActifs, limitesOffre } from "../data/ecole";
 import { offreEffective } from "../offres";
 import { estUuid, messageErreurBdd, texte } from "./helpers";
+import { journaliser } from "../journal";
 import type { ResultatAction } from "../types";
 
 function validerChamps(donnees: FormData): {
@@ -233,11 +234,22 @@ export async function supprimerEleve(donnees: FormData): Promise<ResultatAction>
   const id = texte(donnees, "id");
   if (!estUuid(id)) return { error: "Élève introuvable." };
 
-  const resultat = await sql(
-    `delete from eleves where id = $1 and ecole_id = $2 returning id`,
+  const resultat = await sql<{ id: string; nom: string; prenom: string }>(
+    `delete from eleves where id = $1 and ecole_id = $2
+     returning id, nom, prenom`,
     [id, session.ecoleId],
   );
   if (resultat.length === 0) return { error: "Élève introuvable." };
+
+  const eleve = resultat[0];
+  await journaliser({
+    action: "ELEVE_SUPPRIME",
+    libelle: `Élève supprimé : ${eleve.prenom} ${eleve.nom}.`,
+    auteur: session.email ?? session.identifiant ?? session.userId,
+    cible: `${eleve.prenom} ${eleve.nom}`,
+    cibleId: id,
+    details: { ecole: session.ecole.nom },
+  });
 
   revalidatePath("/app/eleves");
   revalidatePath("/app");

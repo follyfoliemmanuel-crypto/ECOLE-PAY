@@ -309,8 +309,9 @@ export function FormulaireUtilisateur() {
           name="mot_de_passe"
           type="text"
           required
-          minLength={8}
-          placeholder="8 caractères minimum"
+          minLength={10}
+          maxLength={72}
+          placeholder="10 caractères minimum, une lettre et un chiffre"
           className="input"
         />
         <p className="aide">
@@ -376,7 +377,8 @@ export function FormulaireMotDePasse() {
             type="password"
             autoComplete="new-password"
             required
-            minLength={8}
+            minLength={10}
+            maxLength={72}
             className="input"
           />
         </div>
@@ -390,7 +392,8 @@ export function FormulaireMotDePasse() {
             type="password"
             autoComplete="new-password"
             required
-            minLength={8}
+            minLength={10}
+            maxLength={72}
             className="input"
           />
         </div>

@@ -4,8 +4,11 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { sql, transaction, uneLigne } from "../db";
 import {
+  comparerMotDePasseFactice,
+  creerDefiDeuxFacteurs,
   creerSession,
   creerSessionSuperAdmin,
+  emailDuDefiDeuxFacteurs,
   genererJeton,
   hacherJeton,
   hacherMotDePasse,
@@ -21,6 +24,9 @@ import {
   messageConfigurationEmail,
   modeleEmailReinitialisation,
 } from "../email";
+import { journaliser } from "../journal";
+import { validerMotDePasse } from "../mot-de-passe";
+import { etatDeuxFacteurs, verifierDeuxiemeFacteur } from "../two-facteurs";
 import { normaliserTelephone, formatTelephone } from "../format";
 import { anneeScolaire } from "../mois";
 import {
@@ -47,6 +53,8 @@ export type EtatAuth = {
   avertissement?: string;
   /** Captcha exigé après 3 échecs de connexion. */
   captcha?: { question: string; token: string };
+  /** Mot de passe validé : le code 2FA du super admin est attendu. */
+  deuxFacteurs?: { defi: string };
 } | null;
 
 /** Motif lisible conservé dans le journal d'audit du super admin. */
@@ -99,8 +107,9 @@ export async function inscrire(
   if (!estEmail(email)) {
     return { error: "Cet email n'est pas valide." };
   }
-  if (motDePasse.length < 8) {
-    return { error: "Le mot de passe doit contenir au moins 8 caractères." };
+  const problemeMotDePasse = validerMotDePasse(motDePasse);
+  if (problemeMotDePasse) {
+    return { error: problemeMotDePasse };
   }
   if (motDePasse !== confirmation) {
     return { error: "Les deux mots de passe ne sont pas identiques." };
@@ -281,8 +290,22 @@ export async function connecter(
 ): Promise<EtatAuth> {
   // Le champ accepte l'email du directeur ou l'identifiant donné au professeur
   // (ex. « koffi123 »). Les deux passent par la même vérification.
-  const email = texte(donnees, "email").toLowerCase().slice(0, 160);
+  const emailSaisi = texte(donnees, "email").toLowerCase().slice(0, 160);
   const motDePasse = texte(donnees, "mot_de_passe");
+  const defi2fa = texte(donnees, "defi_2fa");
+  const code2fa = texte(donnees, "code_2fa");
+  // À l'étape 2FA, le défi signé porte lui-même l'email : le formulaire peut
+  // être soumis même si le champ email a été vidé entre-temps.
+  const emailDefi = defi2fa ? await emailDuDefiDeuxFacteurs(defi2fa) : null;
+  const email = emailDefi ?? emailSaisi;
+  // Défi présent mais expiré ou falsifié : on le dit clairement au lieu de
+  // renvoyer « renseignez votre mot de passe » (le formulaire revient à l'étape 1).
+  if (defi2fa && !emailDefi) {
+    return {
+      error:
+        "Votre vérification a expiré. Saisissez de nouveau votre mot de passe.",
+    };
+  }
   const { ip, appareil } = await infosRequete();
 
   // Rate limiting global : 40 tentatives par 10 minutes et par IP.
@@ -299,7 +322,7 @@ export async function connecter(
     };
   }
 
-  if (email.length < 3 || !motDePasse) {
+  if (email.length < 3 || (!motDePasse && !emailDefi)) {
     return {
       error: "Renseignez votre identifiant (ou email) et votre mot de passe.",
     };
@@ -320,7 +343,9 @@ export async function connecter(
   }
 
   // Captcha obligatoire dès le 3e échec, avant même de vérifier le mot de passe.
-  if (etat.exigerCaptcha) {
+  // À l'étape 2FA, le défi signé (5 min) fait office de preuve : redemander un
+  // captcha rendrait l'étape 2 impossible après 3 échecs.
+  if (etat.exigerCaptcha && !emailDefi) {
     const jeton = texte(donnees, "captcha_token");
     const reponse = texte(donnees, "captcha_reponse");
     if (!verifierCaptcha(jeton, reponse)) {
@@ -345,17 +370,65 @@ export async function connecter(
   // Le compte super admin n'est pas un utilisateur d'école : il vit uniquement
   // en variable d'environnement et n'ouvre que la page /super-admin.
   if (estEmailSuperAdmin(email)) {
-    if (!verifierMotDePasseSuperAdmin(motDePasse)) {
-      await enregistrerTentativeConnexion({
-        email,
-        ip,
-        appareil,
-        succes: false,
-      });
-      return {
-        error: MESSAGE_CONNEXION,
-        captcha: captchaSuivant(etat.echecs),
-      };
+    const defiValide = emailDefi !== null;
+
+    if (!defiValide) {
+      if (!verifierMotDePasseSuperAdmin(motDePasse)) {
+        // Même durée qu'un vrai bcrypt : sinon l'absence de compte se devine.
+        await comparerMotDePasseFactice(motDePasse);
+        await enregistrerTentativeConnexion({
+          email,
+          ip,
+          appareil,
+          succes: false,
+        });
+        return {
+          error: MESSAGE_CONNEXION,
+          captcha: captchaSuivant(etat.echecs),
+        };
+      }
+
+      // Mot de passe correct : si la 2FA est active, on demande le code avant
+      // toute création de session.
+      const etat2fa = await etatDeuxFacteurs(email);
+      if (etat2fa.actif) {
+        return { deuxFacteurs: { defi: await creerDefiDeuxFacteurs(email) } };
+      }
+    } else {
+      // Le défi signé remplace le mot de passe, mais uniquement si la 2FA est
+      // toujours active (elle a pu être désactivée entre-temps).
+      const etat2fa = await etatDeuxFacteurs(email);
+      if (!etat2fa.actif) return { error: MESSAGE_CONNEXION };
+
+      // Limite dédiée aux codes : 8 essais par email et par quart d'heure.
+      if (
+        !(await consommerLimite(`auth:super2fa:ip:${ip}`, 20, 900)) ||
+        !(await consommerLimite(`auth:super2fa:email:${email}`, 8, 900))
+      ) {
+        return { error: "Trop de codes essayés. Patientez quelques minutes." };
+      }
+
+      if (!code2fa) {
+        return {
+          error:
+            "Saisissez le code à 6 chiffres de votre application d'authentification.",
+          deuxFacteurs: { defi: defi2fa },
+        };
+      }
+
+      if (!(await verifierDeuxiemeFacteur(email, code2fa))) {
+        await enregistrerTentativeConnexion({
+          email,
+          ip,
+          appareil,
+          succes: false,
+        });
+        return {
+          error: MESSAGE_CONNEXION,
+          captcha: captchaSuivant(etat.echecs),
+          deuxFacteurs: { defi: defi2fa },
+        };
+      }
     }
 
     await enregistrerTentativeConnexion({
@@ -365,6 +438,12 @@ export async function connecter(
       succes: true,
     });
     await creerSessionSuperAdmin();
+    await journaliser({
+      action: "CONNEXION_SUPER",
+      libelle: "Connexion au tableau super admin",
+      auteur: email,
+      cible: "Super admin",
+    });
     revalidatePath("/", "layout");
     redirect("/super-admin");
   }
@@ -386,8 +465,10 @@ export async function connecter(
     [email],
   );
 
-  // Email inconnu, compte désactivé ou école désactivée : même message.
+  // Email inconnu, compte désactivé ou école désactivée : même message, et
+  // même durée de réponse qu'un mot de passe effectivement comparé.
   if (!utilisateur || !utilisateur.actif || !utilisateur.ecole_active) {
+    await comparerMotDePasseFactice(motDePasse);
     await enregistrerTentativeConnexion({
       email,
       ip,
@@ -541,8 +622,9 @@ export async function reinitialiserMotDePasse(
     return { error: "Trop de tentatives. Patientez quelques minutes." };
   }
 
-  if (motDePasse.length < 8) {
-    return { error: "Le mot de passe doit contenir au moins 8 caractères." };
+  const problemeMotDePasse = validerMotDePasse(motDePasse);
+  if (problemeMotDePasse) {
+    return { error: problemeMotDePasse };
   }
   if (motDePasse !== confirmation) {
     return { error: "Les deux mots de passe ne sont pas identiques." };

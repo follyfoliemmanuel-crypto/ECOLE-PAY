@@ -5,9 +5,10 @@ import { transaction, uneLigne } from "../db";
 import { getSession } from "../auth";
 import { anneeScolaire, libelleAnnee } from "../mois";
 import { libelleNature, libellePeriodeFrais } from "../periodes";
-import { dateInput, formatDateHeure, formatF } from "../format";
+import { dateInput, formatDateHeure, formatF, formatFCFA } from "../format";
 import { lienWhatsApp, rendreMessage } from "../whatsapp";
 import { estUuid, entier, messageErreurBdd, texte } from "./helpers";
+import { journaliser } from "../journal";
 import {
   LIBELLES_MODE,
   type Frequence,
@@ -252,8 +253,15 @@ export async function annulerPaiement(
     return { error: "Indiquez le motif de l'annulation (3 caractères minimum)." };
   }
 
-  const paiement = await uneLigne<{ id: string; annule: boolean }>(
-    `select id, annule from paiements where id = $1 and ecole_id = $2`,
+  const paiement = await uneLigne<{
+    id: string;
+    annule: boolean;
+    montant: number;
+    numero_recu: string;
+    libelle: string | null;
+  }>(
+    `select id, annule, montant, numero_recu, libelle
+       from paiements where id = $1 and ecole_id = $2`,
     [id, session.ecoleId],
   );
   if (!paiement) return { error: "Paiement introuvable." };
@@ -274,6 +282,20 @@ export async function annulerPaiement(
   } catch (erreur) {
     return { error: messageErreurBdd(erreur) };
   }
+
+  await journaliser({
+    action: "PAIEMENT_ANNULE",
+    libelle: `Paiement ${paiement.numero_recu} annulé (${formatFCFA(paiement.montant)}).`,
+    auteur: session.email ?? session.identifiant ?? session.userId,
+    cible: paiement.numero_recu,
+    cibleId: id,
+    details: {
+      montant: paiement.montant,
+      libelle: paiement.libelle,
+      motif,
+      ecole: session.ecole.nom,
+    },
+  });
 
   revalidatePath("/app");
   revalidatePath("/app/paiements");

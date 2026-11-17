@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { LogOut } from "lucide-react";
+import { LogOut, ShieldCheck } from "lucide-react";
 import { exigerSuperAdmin } from "@/lib/auth";
 import { deconnecterSuperAdmin } from "@/lib/actions/auth";
 import { Logo } from "@/components/ui/logo";
@@ -39,6 +39,13 @@ export default async function LayoutSuperAdmin({
           </div>
 
           <div className="flex items-center gap-3">
+            <Link
+              href="/super-admin/securite"
+              className="inline-flex items-center gap-1.5 rounded-sm border border-white/15 px-2.5 py-1.5 text-[11.5px] font-medium text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            >
+              <ShieldCheck size={13} aria-hidden />
+              Sécurité
+            </Link>
             <span className="hidden text-[11.5px] text-white/55 sm:inline">
               {email}
             </span>

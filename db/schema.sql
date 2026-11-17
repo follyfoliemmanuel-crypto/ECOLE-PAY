@@ -1228,6 +1228,39 @@ create table if not exists rate_limits (
 
 create index if not exists rate_limits_fenetre_idx on rate_limits (fenetre);
 
+-- Double authentification du super admin ------------------------------------
+-- Le secret TOTP est stocké en base pour être activable depuis l'application.
+-- Les codes de secours sont hachés (bcrypt) : ils ne sont affichés qu'une fois.
+create table if not exists super_admin_2fa (
+  email             text        primary key,
+  secret            text        not null,
+  actif             boolean     not null default true,
+  codes_secours     jsonb       not null default '[]'::jsonb,
+  dernier_compteur  bigint      not null default 0,
+  active_le         timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
+-- Journal d'audit des actions sensibles --------------------------------------
+-- Aucune donnée de paiement ni mot de passe : seulement l'action, son auteur,
+-- la cible et un contexte lisible.
+create table if not exists journal_actions (
+  id             uuid        primary key default gen_random_uuid(),
+  action         text        not null,
+  libelle        text        not null,
+  auteur         text        not null default 'système',
+  cible          text,
+  cible_id       uuid,
+  ip             text,
+  details        jsonb       not null default '{}'::jsonb,
+  date_creation  timestamptz not null default now()
+);
+
+create index if not exists journal_actions_date_idx
+  on journal_actions (date_creation desc);
+create index if not exists journal_actions_action_idx
+  on journal_actions (action, date_creation desc);
+
 -- Déconnexion automatique après 24 h d'inactivité ---------------------------
 alter table users add column if not exists derniere_activite timestamptz;
 

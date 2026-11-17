@@ -96,9 +96,9 @@ export function NouveauCompteProf() {
               name="mot_de_passe"
               type={visible ? "text" : "password"}
               required
-              minLength={6}
+              minLength={10}
               maxLength={72}
-              placeholder="au moins 6 caractères"
+              placeholder="au moins 10 caractères"
               className="input h-9 pr-16"
               autoComplete="new-password"
             />
@@ -212,11 +212,11 @@ export function ReinitialiserAccesProf({ prof }: { prof: Prof }) {
               id={`acces-mdp-${prof.id}`}
               name="mot_de_passe"
               type="password"
-              minLength={6}
+              minLength={10}
               maxLength={72}
               required={!prof.user_id}
               placeholder={
-                prof.user_id ? "Laisser vide pour conserver l'actuel" : "au moins 6 caractères"
+                prof.user_id ? "Laisser vide pour conserver l'actuel" : "au moins 10 caractères"
               }
               className="input h-9"
               autoComplete="new-password"

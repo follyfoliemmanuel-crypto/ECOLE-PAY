@@ -19,14 +19,14 @@ function ChampMotDePasse({
   autoComplete,
   placeholder,
   aide,
-  minLength = 8,
+  minLength = 10,
 }: {
   nom: string;
   label: string;
   autoComplete: string;
   placeholder?: string;
   aide?: string;
-  /** Les professeurs ont un mot de passe d'au moins 6 caractères. */
+  /** Longueur minimale (10 pour les comptes, 1 pour la connexion). */
   minLength?: number;
 }) {
   const [visible, setVisible] = useState(false);
@@ -83,38 +83,42 @@ export function FormulaireConnexion({ suivant }: { suivant?: string }) {
     connecter,
     null,
   );
+  // Étape 2FA : ni email ni mot de passe ne sont redemandés. Le défi signé
+  // (5 min) porte l'identité, donc le mot de passe ne reste pas dans la page.
+  const deuxiemeEtape = Boolean(etat?.deuxFacteurs);
 
   return (
     <form action={action} className="space-y-4">
       {suivant && <input type="hidden" name="suivant" value={suivant} />}
 
-      <div>
-        <label className="label" htmlFor="email">
-          Identifiant ou email
-        </label>
-        <input
-          id="email"
-          name="email"
-          type="text"
-          autoComplete="username"
-          required
-          placeholder="koffi123 ou directeur@ecole.tg"
-          className="input"
-        />
-        <p className="aide">
-          Les professeurs utilisent l&apos;identifiant remis par le directeur.
-        </p>
-      </div>
+      {!deuxiemeEtape && (
+        <>
+          <div>
+            <label className="label" htmlFor="email">
+              Identifiant ou email
+            </label>
+            <input
+              id="email"
+              name="email"
+              type="text"
+              autoComplete="username"
+              required
+              placeholder="Votre email"
+              className="input"
+            />
+          </div>
 
-      <ChampMotDePasse
-        nom="mot_de_passe"
-        label="Mot de passe"
-        autoComplete="current-password"
-        placeholder="Votre mot de passe"
-        minLength={1}
-      />
+          <ChampMotDePasse
+            nom="mot_de_passe"
+            label="Mot de passe"
+            autoComplete="current-password"
+            placeholder="Votre mot de passe"
+            minLength={1}
+          />
+        </>
+      )}
 
-      {etat?.captcha && (
+      {etat?.captcha && !deuxiemeEtape && (
         <div className="rounded-sm border border-ochre/30 bg-[#fbf1de] px-3.5 py-3">
           <input
             type="hidden"
@@ -139,19 +143,61 @@ export function FormulaireConnexion({ suivant }: { suivant?: string }) {
         </div>
       )}
 
+      {etat?.deuxFacteurs && (
+        <div className="rounded-sm border border-brand/25 bg-brand-soft px-3.5 py-3">
+          <input
+            type="hidden"
+            name="defi_2fa"
+            value={etat.deuxFacteurs.defi}
+          />
+          <label className="label" htmlFor="code_2fa">
+            Code de vérification (2FA)
+          </label>
+          <input
+            id="code_2fa"
+            name="code_2fa"
+            type="text"
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            autoFocus
+            required
+            placeholder="123456 ou code de secours"
+            className="input chiffre tracking-[0.25em]"
+          />
+          <p className="aide">
+            Code à 6 chiffres de votre application d&apos;authentification.
+            Un code de secours est aussi accepté.
+          </p>
+        </div>
+      )}
+
       {etat?.error && <Alerte>{etat.error}</Alerte>}
 
       <div className="flex items-center justify-between gap-3">
-        <Link
-          href="/mot-de-passe-oublie"
-          className="text-[13px] font-medium text-brand underline-offset-4 hover:underline"
-        >
-          Mot de passe oublié ?
-        </Link>
-        <span className="text-[12px] text-muted">Session sécurisée</span>
+        {deuxiemeEtape ? (
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="text-[13px] font-medium text-brand underline-offset-4 hover:underline"
+          >
+            Revenir au mot de passe
+          </button>
+        ) : (
+          <Link
+            href="/mot-de-passe-oublie"
+            className="text-[13px] font-medium text-brand underline-offset-4 hover:underline"
+          >
+            Mot de passe oublié ?
+          </Link>
+        )}
+        <span className="text-[12px] text-muted">
+          {deuxiemeEtape ? "Défi valable 5 minutes" : "Session sécurisée"}
+        </span>
       </div>
 
-      <BoutonSoumettre enCours={enCours}>Se connecter</BoutonSoumettre>
+      <BoutonSoumettre enCours={enCours}>
+        {deuxiemeEtape ? "Vérifier le code" : "Se connecter"}
+      </BoutonSoumettre>
     </form>
   );
 }
@@ -293,7 +339,7 @@ export function FormulaireInscription() {
             nom="mot_de_passe"
             label="Mot de passe"
             autoComplete="new-password"
-            placeholder="8 caractères minimum"
+            placeholder="10 caractères minimum"
           />
           <ChampMotDePasse
             nom="confirmation"
@@ -384,7 +430,7 @@ export function FormulaireReinitialisation({ jeton }: { jeton: string }) {
         nom="mot_de_passe"
         label="Nouveau mot de passe"
         autoComplete="new-password"
-        placeholder="8 caractères minimum"
+        placeholder="10 caractères minimum"
       />
       <ChampMotDePasse
         nom="confirmation"

@@ -468,7 +468,37 @@ Avant une mise en production réelle :
 ## Sécurité
 
 - Mots de passe hachés avec bcrypt (coût 12).
+- **Politique de mot de passe** (création, réinitialisation, profs) : 10 caractères
+  minimum, 72 octets maximum (limite bcrypt), refus des mots de passe les plus
+  courants et des suites trop simples.
 - Session JWT signée, cookie `httpOnly`, `sameSite=lax`, `secure` en production.
+  En production, les cookies portent le préfixe `__Host-` (`__Host-ecolepay_session`),
+  qui interdit au navigateur de les accepter sans `Secure` ni avec un domaine
+  parent : un sous-domaine compromis ne peut pas les écraser.
+- **Double authentification (2FA) du super admin** : TOTP compatible Google
+  Authenticator / Authy / Microsoft Authenticator, activable depuis
+  `/super-admin/securite` (QR code + 8 codes de secours hachés). Le secret TOTP
+  est stocké en base (`super_admin_2fa`) : la base doit donc être protégée.
+  - La connexion se fait en deux étapes : mot de passe, puis code. Le défi de
+    5 minutes est signé (HMAC) et porte l'email, donc l'étape 2 n'affiche ni
+    email ni mot de passe et ne peut pas être détournée vers un autre compte.
+  - Un code TOTP déjà utilisé est refusé (anti-rejeu par compteur de 30 s), et
+    chaque code de secours ne sert qu'une fois.
+  - Limite dédiée : 8 codes par email et par quart d'heure, 20 par IP.
+  - Secours si téléphone **et** codes perdus : `npm run 2fa:desactiver -- email@…`
+    (`scripts/desactiver-2fa.mjs`) sur le serveur, avec `DATABASE_URL` défini.
+- **Journal d'audit** (`journal_actions`) : connexion super admin, activation ou
+  désactivation de la 2FA, changement d'offre, blocage/déblocage d'école, essai
+  forcé, création de comptes, changements de mot de passe, suppressions d'élèves
+  et annulations de paiement. L'écriture est « au mieux » : une panne du journal
+  ne fait jamais échouer l'action métier.
+- **Comparaison à temps constant** pour le mot de passe du super admin (stocké en
+  variable d'environnement) et hachage factice quand le compte n'existe pas :
+  la durée de réponse ne révèle pas l'existence d'un email.
+- **Rôle PostgreSQL dédié** (`db/roles.sql`) : rôle applicatif sans `SUPERUSER`,
+  sans `CREATEDB`, sans `CREATEROLE`, avec les seuls droits nécessaires sur le
+  schéma `public`. À exécuter une fois sur la base de production puis à utiliser
+  dans `DATABASE_URL`.
 - `token_version` invalide les sessions après changement de mot de passe ou
   désactivation d'un compte.
 - Le middleware protège `/app`, mais chaque page et chaque action revérifient la

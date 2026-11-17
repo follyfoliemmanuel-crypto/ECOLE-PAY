@@ -70,3 +70,27 @@ export async function listerTentativesRefusees(
     [limite],
   );
 }
+
+export type ActionJournalisee = {
+  id: string;
+  action: string;
+  libelle: string;
+  auteur: string;
+  cible: string | null;
+  ip: string | null;
+  date_creation: string;
+};
+
+/** Dernières actions sensibles enregistrées, toutes écoles confondues. */
+export async function listerJournal(
+  limite = 40,
+): Promise<ActionJournalisee[]> {
+  return sql<ActionJournalisee>(
+    `select id, action, libelle, auteur, cible, ip,
+            to_char(date_creation, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as date_creation
+       from journal_actions
+      order by date_creation desc
+      limit $1`,
+    [limite],
+  );
+}

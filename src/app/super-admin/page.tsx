@@ -13,6 +13,7 @@ import { dateDuJour } from "@/lib/activation";
 import { anneeScolaire, libelleAnnee } from "@/lib/mois";
 import {
   listerEcolesSuperAdmin,
+  listerJournal,
   listerTentativesRefusees,
 } from "@/lib/data/super-admin";
 import { formatDate, formatDateHeure, formatNombre } from "@/lib/format";
@@ -95,6 +96,7 @@ export default async function PageSuperAdmin() {
   const annee = anneeScolaire();
   const ecoles = await listerEcolesSuperAdmin(annee);
   const refus = await listerTentativesRefusees();
+  const journal = await listerJournal();
   const aujourdhui = dateDuJour();
 
   const actives = ecoles.filter((ecole) => ecole.statut === "ACTIF").length;
@@ -348,6 +350,78 @@ export default async function PageSuperAdmin() {
                         nom={tentative.nom_ecole}
                         traite={tentative.traite}
                       />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <section className="card mt-6 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3.5 sm:px-5">
+          <div>
+            <h2 className="flex items-center gap-2 text-[14px] font-semibold text-ink">
+              <ShieldCheck size={15} className="text-brand" aria-hidden />
+              Journal d&apos;audit
+            </h2>
+            <p className="mt-0.5 text-[11.5px] text-muted">
+              Actions sensibles : offres, blocages, comptes, paiements annulés,
+              élèves supprimés, sécurité du compte super admin
+            </p>
+          </div>
+          <span className="text-[11px] text-muted">
+            {formatNombre(journal.length)} dernière
+            {journal.length > 1 ? "s" : ""} action{journal.length > 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {journal.length === 0 ? (
+          <p className="px-5 py-10 text-center text-[13px] text-muted">
+            Aucune action sensible enregistrée pour l&apos;instant.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="tableau min-w-[860px]">
+              <thead>
+                <tr>
+                  <th>Action</th>
+                  <th>Détail</th>
+                  <th>Auteur</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody>
+                {journal.map((entree) => (
+                  <tr key={entree.id}>
+                    <td>
+                      <span className="block font-mono text-[10.5px] font-semibold uppercase tracking-wide text-brand">
+                        {entree.action}
+                      </span>
+                      {entree.cible && (
+                        <span className="mt-0.5 block max-w-[220px] truncate text-[11px] text-muted">
+                          {entree.cible}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <span className="block max-w-[380px] text-[11.5px] leading-relaxed text-ink-2">
+                        {entree.libelle}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="block max-w-[200px] truncate text-[11px] text-ink-2">
+                        {entree.auteur}
+                      </span>
+                      <span className="block text-[10px] text-muted">
+                        IP {entree.ip ?? "inconnue"}
+                      </span>
+                    </td>
+                    <td>
+                      <span className="chiffre text-[11.5px] text-ink-2">
+                        {formatDateHeure(entree.date_creation)}
+                      </span>
                     </td>
                   </tr>
                 ))}

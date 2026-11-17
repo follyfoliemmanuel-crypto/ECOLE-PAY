@@ -7,12 +7,25 @@ import { SignJWT, jwtVerify } from "jose";
 import { sql, uneLigne } from "./db";
 import { accesAutorise, emailSuperAdmin } from "./activation";
 import { INACTIVITE_MAX_MS, RAFRAICHISSEMENT_ACTIVITE_MS } from "./securite";
+import {
+  NOM_COOKIE_SESSION,
+  NOM_COOKIE_SUPER,
+  optionsCookie,
+} from "./cookies";
 import type { Offre, Role, Session, StatutEcole } from "./types";
 
-const COOKIE = "ecolepay_session";
-const COOKIE_SUPER = "ecolepay_super";
 const DUREE_SESSION = 60 * 60 * 24 * 30; // 30 jours
-const DUREE_SUPER = 60 * 60 * 8; // 8 heures
+const DUREE_SUPER = 60 * 60 * 2; // 2 heures : le super admin agit sur toutes les écoles
+/** Durée de vie du défi « mot de passe validé, code 2FA attendu ». */
+const DUREE_DEFI_2FA = 5 * 60; // 5 minutes
+
+/**
+ * Hash bcrypt factice. Comparé quand l'utilisateur n'existe pas, pour que la
+ * réponse prenne le même temps qu'un vrai échec de mot de passe : sans cela,
+ * l'écart de durée révèle quels emails sont enregistrés.
+ */
+const HASH_FACTICE =
+  "$2b$12$c1hiPW472QPXVfZaKVVOwe0.38PvzQnGnEWt8D8vKzWfyketDNbW2";
 
 function secret(): Uint8Array {
   const valeur = process.env.AUTH_SECRET;
@@ -36,6 +49,16 @@ export async function verifierMotDePasse(
   hash: string,
 ): Promise<boolean> {
   return bcrypt.compare(motDePasse, hash);
+}
+
+/**
+ * Consomme le même temps qu'une vérification réelle, sans révéler si le compte
+ * existe. À appeler sur les chemins d'échec où aucun hash réel n'est comparé.
+ */
+export async function comparerMotDePasseFactice(
+  motDePasse: string,
+): Promise<void> {
+  await bcrypt.compare(motDePasse, HASH_FACTICE).catch(() => false);
 }
 
 export function hacherJeton(jeton: string): string {
@@ -63,18 +86,12 @@ export async function creerSession(
     .sign(secret());
 
   const jar = await cookies();
-  jar.set(COOKIE, jeton, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: DUREE_SESSION,
-  });
+  jar.set(NOM_COOKIE_SESSION, jeton, optionsCookie(DUREE_SESSION));
 }
 
 export async function supprimerSession(): Promise<void> {
   const jar = await cookies();
-  jar.set(COOKIE, "", { httpOnly: true, path: "/", maxAge: 0 });
+  jar.set(NOM_COOKIE_SESSION, "", optionsCookie(0));
 }
 
 /**
@@ -83,7 +100,7 @@ export async function supprimerSession(): Promise<void> {
  */
 export const getSession = cache(async (): Promise<Session | null> => {
   const jar = await cookies();
-  const jeton = jar.get(COOKIE)?.value;
+  const jeton = jar.get(NOM_COOKIE_SESSION)?.value;
   if (!jeton) return null;
 
   let userId: string;
@@ -211,6 +228,49 @@ export function verifierMotDePasseSuperAdmin(saisie: string): boolean {
   return timingSafeEqual(a, b);
 }
 
+/**
+ * Défi signé émis après un mot de passe super admin correct : il autorise la
+ * saisie du code 2FA sans redemander le mot de passe. Sa courte durée de vie
+ * et son lien à l'email empêchent toute réutilisation.
+ */
+type ChargeDefi2FA = { typ: "super-defi"; email: string };
+
+export async function creerDefiDeuxFacteurs(email: string): Promise<string> {
+  return new SignJWT({
+    typ: "super-defi",
+    email: email.toLowerCase(),
+  } satisfies ChargeDefi2FA)
+    .setProtectedHeader({ alg: "HS256" })
+    .setIssuedAt()
+    .setExpirationTime(`${DUREE_DEFI_2FA}s`)
+    .sign(secret());
+}
+
+export async function verifierDefiDeuxFacteurs(
+  defi: string,
+  email: string,
+): Promise<boolean> {
+  const emailDuDefi = await emailDuDefiDeuxFacteurs(defi);
+  return emailDuDefi !== null && emailDuDefi === email.toLowerCase();
+}
+
+/** Email porté par un défi 2FA valide, ou null s'il est expiré/forgé. */
+export async function emailDuDefiDeuxFacteurs(
+  defi: string,
+): Promise<string | null> {
+  if (!defi) return null;
+  try {
+    const { payload } = await jwtVerify(defi, secret(), {
+      algorithms: ["HS256"],
+    });
+    return payload.typ === "super-defi" && typeof payload.email === "string"
+      ? payload.email.toLowerCase()
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function creerSessionSuperAdmin(): Promise<void> {
   const jeton = await new SignJWT({ typ: "super", email: emailSuperAdmin() } satisfies ChargeSuper)
     .setProtectedHeader({ alg: "HS256" })
@@ -219,24 +279,18 @@ export async function creerSessionSuperAdmin(): Promise<void> {
     .sign(secret());
 
   const jar = await cookies();
-  jar.set(COOKIE_SUPER, jeton, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: DUREE_SUPER,
-  });
+  jar.set(NOM_COOKIE_SUPER, jeton, optionsCookie(DUREE_SUPER));
 }
 
 export async function supprimerSessionSuperAdmin(): Promise<void> {
   const jar = await cookies();
-  jar.set(COOKIE_SUPER, "", { httpOnly: true, path: "/", maxAge: 0 });
+  jar.set(NOM_COOKIE_SUPER, "", optionsCookie(0));
 }
 
 /** Email du super admin connecté, ou null. */
 export async function getSuperAdmin(): Promise<string | null> {
   const jar = await cookies();
-  const jeton = jar.get(COOKIE_SUPER)?.value;
+  const jeton = jar.get(NOM_COOKIE_SUPER)?.value;
   if (!jeton) return null;
 
   try {

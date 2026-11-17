@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { exigerSuperAdmin } from "../auth";
 import { transaction, uneLigne } from "../db";
 import { estOffre, OFFRES } from "../offres";
+import { journaliser } from "../journal";
 import { estUuid } from "./helpers";
 import type { Offre, ResultatAction } from "../types";
 
@@ -14,7 +15,7 @@ async function activer(
   offre: Offre,
   jours: Duree,
 ): Promise<ResultatAction> {
-  await exigerSuperAdmin();
+  const auteur = await exigerSuperAdmin();
 
   if (!estUuid(ecoleId)) return { error: "École introuvable." };
   if (!estOffre(offre)) return { error: "Offre inconnue." };
@@ -39,6 +40,15 @@ async function activer(
 
   if (!ligne) return { error: "École introuvable." };
 
+  await journaliser({
+    action: "OFFRE_ACTIVEE",
+    libelle: `${ligne.nom} activée en ${offre} jusqu'au ${ligne.date_fin} (${jours} jours).`,
+    auteur,
+    cible: ligne.nom,
+    cibleId: ecoleId,
+    details: { offre, jours, date_fin: ligne.date_fin },
+  });
+
   revalidatePath("/super-admin");
   revalidatePath("/app", "layout");
   return {
@@ -59,7 +69,7 @@ export async function changerOffre(
   ecoleId: string,
   offre: Offre,
 ): Promise<ResultatAction> {
-  await exigerSuperAdmin();
+  const auteur = await exigerSuperAdmin();
 
   if (!estUuid(ecoleId)) return { error: "École introuvable." };
   if (!estOffre(offre)) return { error: "Offre inconnue." };
@@ -74,6 +84,15 @@ export async function changerOffre(
   );
 
   if (!ligne) return { error: "École introuvable." };
+
+  await journaliser({
+    action: "OFFRE_CHANGEE",
+    libelle: `Bascule d'offre de ${ligne.nom} vers ${offre}.`,
+    auteur,
+    cible: ligne.nom,
+    cibleId: ecoleId,
+    details: { offre, statut: ligne.statut },
+  });
 
   revalidatePath("/super-admin");
   // Le layout couvre toutes les pages /app : dashboard, profs, notes, portail…
@@ -118,7 +137,7 @@ export async function activerPremium3Mois(ecoleId: string) {
 
 /** BLOQUER : coupe immédiatement l'accès à l'application, sans effacer les données. */
 export async function bloquerEcole(ecoleId: string): Promise<ResultatAction> {
-  await exigerSuperAdmin();
+  const auteur = await exigerSuperAdmin();
 
   if (!estUuid(ecoleId)) return { error: "École introuvable." };
 
@@ -132,6 +151,14 @@ export async function bloquerEcole(ecoleId: string): Promise<ResultatAction> {
   );
 
   if (!ligne) return { error: "École introuvable." };
+
+  await journaliser({
+    action: "ECOLE_BLOQUEE",
+    libelle: `${ligne.nom} a été bloquée.`,
+    auteur,
+    cible: ligne.nom,
+    cibleId: ecoleId,
+  });
 
   revalidatePath("/super-admin");
   revalidatePath("/app", "layout");
@@ -235,6 +262,13 @@ export async function forcerNouvelEssai(
   }
 
   revalidatePath("/super-admin");
+  await journaliser({
+    action: "ESSAI_FORCE",
+    libelle: `Nouvel essai accordé à ${resultat.nom}.`,
+    auteur,
+    cible: resultat.nom,
+    details: { audit_id: auditId },
+  });
   return {
     success: `Nouvel essai autorisé pour ${resultat.nom}. Le directeur peut se réinscrire avec le même nom d'école ou le même téléphone.`,
   };
