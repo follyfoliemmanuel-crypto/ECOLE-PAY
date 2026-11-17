@@ -26,7 +26,7 @@ export default function LayoutAuth({
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo-ecole-pay.png"
-              alt="ECOLE PAY — Apprendre, réussir, payer facilement"
+              alt="SCHOOL PAY — Apprendre, réussir, payer facilement"
               width={230}
               height={153}
               className="h-auto w-[230px]"
@@ -102,7 +102,7 @@ export default function LayoutAuth({
         </div>
 
         <p className="mt-8 text-[11px] text-white/35">
-          ECOLE PAY · Conçu pour les écoles privées du Togo
+          SCHOOL PAY · Conçu pour les écoles privées du Togo
         </p>
       </aside>
 
@@ -126,7 +126,7 @@ export default function LayoutAuth({
 
         <div className="px-5 pb-6 text-center lg:px-8">
           <p className="text-[11.5px] text-muted">
-            © {new Date().getFullYear()} ECOLE PAY · Lomé, Togo
+            © {new Date().getFullYear()} SCHOOL PAY · Lomé, Togo
           </p>
         </div>
       </main>

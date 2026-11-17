@@ -23,7 +23,7 @@ import { COMMERCIAL, lienWhatsAppCommercial } from "@/lib/config";
 export const metadata: Metadata = {
   title: "Logiciel de frais scolaires pour les écoles privées du Togo",
   description:
-    "ECOLE PAY remplace le cahier de frais : encaissements, reçus WhatsApp automatiques, relance des impayés et bilan mensuel. Essai gratuit 30 jours.",
+    "SCHOOL PAY remplace le cahier de frais : encaissements, reçus WhatsApp automatiques, relance des impayés et bilan mensuel. Essai gratuit 30 jours.",
 };
 
 const plans = [
@@ -109,7 +109,7 @@ export default function PageAccueil() {
       {/* ---------------------------------------------------------------- */}
       <header className="border-b border-line bg-canvas/95">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-5 sm:px-8">
-          <Link href="/" aria-label="ECOLE PAY — accueil">
+          <Link href="/" aria-label="SCHOOL PAY — accueil">
             <Logo />
           </Link>
 
@@ -168,7 +168,7 @@ export default function PageAccueil() {
             </h1>
 
             <p className="mt-6 max-w-[34rem] text-[15.5px] leading-[1.65] text-ink-2 sm:text-[16.5px]">
-              ECOLE PAY remplace le cahier de scolarité. Votre secrétaire encaisse
+              SCHOOL PAY remplace le cahier de scolarité. Votre secrétaire encaisse
               en trois clics, le parent reçoit son reçu sur WhatsApp, et vous
               voyez en cinq secondes combien il reste à encaisser.
             </p>
@@ -313,7 +313,7 @@ export default function PageAccueil() {
                   Lundi matin
                 </p>
                 <h2 className="mt-3 max-w-xl text-[26px] font-semibold leading-tight tracking-[-0.03em] text-ink sm:text-[30px]">
-                  Ce que le cahier ne vous dit pas, ECOLE PAY vous le montre.
+                  Ce que le cahier ne vous dit pas, SCHOOL PAY vous le montre.
                 </h2>
               </div>
               <p className="max-w-xs text-[13px] leading-relaxed text-muted">
@@ -646,7 +646,7 @@ export default function PageAccueil() {
                 Les données d&apos;une école restent chez elle.
               </h2>
               <p className="mt-3 max-w-sm text-[13px] leading-relaxed text-muted">
-                ECOLE PAY héberge plusieurs écoles, mais chaque compte est isolé.
+                SCHOOL PAY héberge plusieurs écoles, mais chaque compte est isolé.
                 Un directeur ne peut jamais voir les élèves d&apos;une autre école,
                 même en modifiant l&apos;adresse d&apos;une page.
               </p>
@@ -784,7 +784,7 @@ export default function PageAccueil() {
                 {
                   question: "Comment le reçu WhatsApp est-il envoyé ?",
                   reponse:
-                    "ECOLE PAY prépare un reçu structuré au nom de l'établissement et ouvre WhatsApp avec le numéro du parent. La secrétaire relit le message puis appuie sur Envoyer depuis son téléphone. Le reçu peut aussi être imprimé directement depuis la caisse.",
+                    "SCHOOL PAY prépare un reçu structuré au nom de l'établissement et ouvre WhatsApp avec le numéro du parent. La secrétaire relit le message puis appuie sur Envoyer depuis son téléphone. Le reçu peut aussi être imprimé directement depuis la caisse.",
                 },
                 {
                   question: "Puis-je enregistrer un paiement partiel ?",
@@ -871,7 +871,7 @@ export default function PageAccueil() {
             </Link>
             <a
               href={lienWhatsAppCommercial(
-                "Bonjour ECOLE PAY, je souhaite des informations pour mon école",
+                "Bonjour SCHOOL PAY, je souhaite des informations pour mon école",
               )}
               target="_blank"
               rel="noopener noreferrer"
@@ -886,7 +886,7 @@ export default function PageAccueil() {
         </div>
         <div className="border-t border-line">
           <div className="mx-auto flex max-w-6xl flex-col gap-2 px-5 py-4 text-[11px] text-muted sm:flex-row sm:items-center sm:justify-between sm:px-8">
-            <p>© {new Date().getFullYear()} ECOLE PAY. Tous droits réservés.</p>
+            <p>© {new Date().getFullYear()} SCHOOL PAY. Tous droits réservés.</p>
             <p>Conçu et hébergé pour les écoles du Togo.</p>
           </div>
         </div>

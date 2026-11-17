@@ -33,7 +33,7 @@ export async function envoyerEmail({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: process.env.EMAIL_FROM ?? "ECOLE PAY <noreply@ecolepay.tg>",
+        from: process.env.EMAIL_FROM ?? "SCHOOL PAY <noreply@ecolepay.tg>",
         to: [to],
         subject,
         html,
@@ -87,7 +87,7 @@ const DUREE_CACHE = 5 * 60 * 1000;
 
 /** Domaine d'envoi déduit de `EMAIL_FROM` (ex. « noreply@ecolepay.tg »). */
 function domaineEnvoi(): string {
-  const from = process.env.EMAIL_FROM ?? "ECOLE PAY <noreply@ecolepay.tg>";
+  const from = process.env.EMAIL_FROM ?? "SCHOOL PAY <noreply@ecolepay.tg>";
   const adresse = from.match(/<([^>]+)>/)?.[1] ?? from;
   return adresse.split("@")[1]?.trim().toLowerCase() ?? "";
 }
@@ -174,7 +174,7 @@ export function modeleEmailReinitialisation(lien: string, nom: string): string {
   return `
   <div style="font-family:Arial,sans-serif;max-width:520px;margin:0 auto;color:#14212b">
     <div style="background:#0d3b66;padding:24px;color:#fff">
-      <strong style="font-size:18px;letter-spacing:-.3px">ÉCOLE PAY</strong>
+      <strong style="font-size:18px;letter-spacing:-.3px">SCHOOL PAY</strong>
     </div>
     <div style="padding:24px;border:1px solid #e3ddcf;border-top:0">
       <p>Bonjour ${nomSur},</p>

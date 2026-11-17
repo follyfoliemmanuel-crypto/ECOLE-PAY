@@ -56,7 +56,7 @@ export default async function PagePremium({
         ? `l'école ${session.ecole.nom}`
         : "votre école";
 
-  const messageWhatsApp = `Bonjour ECOLE PAY, je veux passer à PREMIUM ${PRIX_PREMIUM_TEXTE} pour ${contexte} afin de débloquer les comptes profs, le portail parent et l'envoi WhatsApp.`;
+  const messageWhatsApp = `Bonjour SCHOOL PAY, je veux passer à PREMIUM ${PRIX_PREMIUM_TEXTE} pour ${contexte} afin de débloquer les comptes profs, le portail parent et l'envoi WhatsApp.`;
 
   return (
     <div className="min-h-dvh bg-canvas">
@@ -202,7 +202,7 @@ export default async function PagePremium({
         </section>
 
         <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
-          ECOLE PAY · Les fonctions PREMIUM sont vérifiées côté serveur à chaque
+          SCHOOL PAY · Les fonctions PREMIUM sont vérifiées côté serveur à chaque
           accès. Un retour à STARTER ou PRO les verrouille immédiatement, sans
           supprimer les données.
         </p>

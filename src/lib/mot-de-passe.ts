@@ -42,6 +42,10 @@ const INTERDITS = new Set([
   "ecolepay123",
   "ecolepay2025",
   "ecolepay2026",
+  "schoolpay",
+  "schoolpay123",
+  "schoolpay2025",
+  "schoolpay2026",
   "scolarite123",
   "togotogo123",
   "lome123456",
@@ -68,7 +72,10 @@ export function validerMotDePasse(motDePasse: string): string | null {
   if (/^(.)\1+$/.test(motDePasse)) {
     return "Ce mot de passe est trop simple : variez les caractères.";
   }
-  if (motDePasse.toLowerCase().includes("ecolepay")) {
+  if (
+    motDePasse.toLowerCase().includes("schoolpay") ||
+    motDePasse.toLowerCase().includes("ecolepay")
+  ) {
     return "Ne réutilisez pas le nom du service dans votre mot de passe.";
   }
   return null;

@@ -173,7 +173,7 @@ export default async function PageAffichePortail() {
               {ecole.telephone ? ` au ${ecole.telephone}` : ""}.
             </p>
             <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.16em] text-muted/70">
-              Portail officiel ECOLE PAY
+              Portail officiel SCHOOL PAY
             </p>
           </div>
         </article>

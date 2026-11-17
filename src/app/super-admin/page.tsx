@@ -109,7 +109,7 @@ export default async function PageSuperAdmin() {
     <div>
       <EntetePage
         surtitre={`${libelleAnnee(annee)} · Administration`}
-        titre="Écoles ECOLE PAY"
+        titre="Écoles SCHOOL PAY"
         description="Activez une offre, prolongez ou bloquez l'accès d'une école. Seul ce compte super admin peut modifier l'offre : les directeurs ne peuvent pas s'activer eux-mêmes."
       />
 

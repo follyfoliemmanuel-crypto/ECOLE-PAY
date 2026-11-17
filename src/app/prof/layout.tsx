@@ -75,7 +75,7 @@ export default async function LayoutProf({
       </main>
 
       <footer className="border-t border-line px-4 py-4 text-center text-[11px] text-muted">
-        ECOLE PAY · Saisie des notes · Les notes ne sont visibles par les
+        SCHOOL PAY · Saisie des notes · Les notes ne sont visibles par les
         parents qu&apos;après validation du directeur.
       </footer>
     </div>

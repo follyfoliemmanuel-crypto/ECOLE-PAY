@@ -111,10 +111,10 @@ export default async function PageParametres() {
     `Activation offre ${offre} — ${ecole.nom}`,
   );
   const corpsAbonnement = encodeURIComponent(
-    `Bonjour ECOLE PAY,\n\nJe souhaite activer l'offre ${offre} pour ${ecole.nom} (${annee}).\nCompte : ${session.email}\n\nMerci.`,
+    `Bonjour SCHOOL PAY,\n\nJe souhaite activer l'offre ${offre} pour ${ecole.nom} (${annee}).\nCompte : ${session.email}\n\nMerci.`,
   );
   const messageWhatsAppAbonnement = encodeURIComponent(
-    `Bonjour ECOLE PAY, je souhaite activer l'offre ${offre} pour mon école "${ecole.nom}" (${annee}). Compte responsable : ${session.email}`,
+    `Bonjour SCHOOL PAY, je souhaite activer l'offre ${offre} pour mon école "${ecole.nom}" (${annee}). Compte responsable : ${session.email}`,
   );
 
   return (
@@ -311,7 +311,7 @@ export default async function PageParametres() {
                         "Abonnement actif"
                       )
                     ) : (
-                      "Compte bloqué — contactez ECOLE PAY pour réactiver."
+                      "Compte bloqué — contactez SCHOOL PAY pour réactiver."
                     )}
                   </p>
                 </div>

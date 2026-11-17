@@ -196,7 +196,7 @@ export default async function PageEtablissements() {
             Besoin de gérer plusieurs écoles maintenant ?
           </h2>
           <p className="mt-0.5 text-[11.5px] text-muted">
-            Contactez ECOLE PAY pour étudier une solution adaptée à votre groupe
+            Contactez SCHOOL PAY pour étudier une solution adaptée à votre groupe
             scolaire pendant que le module se prépare.
           </p>
         </div>

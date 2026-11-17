@@ -1,13 +1,13 @@
 import type { MetadataRoute } from "next";
 
 /**
- * Manifeste PWA : ECOLE PAY peut être installée sur le téléphone des
+ * Manifeste PWA : SCHOOL PAY peut être installée sur le téléphone des
  * directeurs et secrétaires (Android / iOS via « Ajouter à l'écran d'accueil »).
  */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ECOLE PAY — Gestion des frais scolaires",
-    short_name: "ECOLE PAY",
+    name: "SCHOOL PAY — Gestion des frais scolaires",
+    short_name: "SCHOOL PAY",
     description:
       "Suivez les frais de scolarité, envoyez les reçus WhatsApp et relancez les impayés.",
     start_url: "/app",

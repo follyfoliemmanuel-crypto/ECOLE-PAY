@@ -175,7 +175,7 @@ export default async function PageProf({
         />
         <Alerte ton="erreur">
           Cette fonctionnalité est réservée à l&apos;offre PREMIUM 40.000F.
-          Demandez au directeur de vérifier l&apos;abonnement ECOLE PAY de{" "}
+          Demandez au directeur de vérifier l&apos;abonnement SCHOOL PAY de{" "}
           {session.ecole.nom}.
         </Alerte>
       </div>

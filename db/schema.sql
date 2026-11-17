@@ -1,5 +1,5 @@
 -- ===========================================================================
---  ECOLE PAY — Schéma PostgreSQL (v1)
+--  SCHOOL PAY — Schéma PostgreSQL (v1)
 --  Compatible Neon, Supabase et PostgreSQL 15+.
 --
 --  Principes :

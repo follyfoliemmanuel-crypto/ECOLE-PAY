@@ -115,7 +115,7 @@ export function verifierTOTP(
 export function uriOtpauth(
   secret: string,
   compte: string,
-  emetteur = "ECOLE PAY",
+  emetteur = "SCHOOL PAY",
 ): string {
   const label = `${encodeURIComponent(emetteur)}:${encodeURIComponent(compte)}`;
   const parametres = new URLSearchParams({

@@ -1,7 +1,7 @@
 import { cx } from "@/lib/cx";
 
 /**
- * Marque ECOLE PAY.
+ * Marque SCHOOL PAY.
  * L'emblème officiel (chapeau, livre ouvert) est posé sur une pastille blanche :
  * il reste lisible sur le fond papier comme sur la barre latérale bleu profond.
  */
@@ -40,7 +40,7 @@ export function Logo({
               clair ? "text-white" : "text-ink",
             )}
           >
-            ÉCOLE PAY
+            SCHOOL PAY
           </span>
           <span
             className={cx(

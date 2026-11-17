@@ -211,7 +211,7 @@ export async function creerClasse(
   const actuelles = await compterClasses(session.ecoleId);
   if (limite.classes !== null && actuelles >= limite.classes) {
     return {
-      error: `Votre offre ${offre} est limitée à ${limite.classes} classes. Contactez ECOLE PAY pour l'étendre.`,
+      error: `Votre offre ${offre} est limitée à ${limite.classes} classes. Contactez SCHOOL PAY pour l'étendre.`,
     };
   }
 

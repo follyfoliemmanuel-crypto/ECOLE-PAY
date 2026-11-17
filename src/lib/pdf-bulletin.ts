@@ -52,7 +52,7 @@ export function construirePdfBulletin(donnees: PdfBulletin): Uint8Array {
   doc.setTextColor(255, 206, 0);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(8.5);
-  doc.text("ÉCOLE PAY", 14, 12);
+  doc.text("SCHOOL PAY", 14, 12);
 
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(15);
@@ -223,7 +223,7 @@ export function construirePdfBulletin(donnees: PdfBulletin): Uint8Array {
   doc.setFontSize(7);
   doc.setTextColor(...GRIS);
   doc.text(
-    "Bulletin généré par ECOLE PAY. Seules les notes de cet élève figurent sur ce document.",
+    "Bulletin généré par SCHOOL PAY. Seules les notes de cet élève figurent sur ce document.",
     14,
     hauteur - 10,
   );

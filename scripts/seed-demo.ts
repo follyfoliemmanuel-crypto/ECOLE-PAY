@@ -1,5 +1,5 @@
 /**
- * Données de démonstration pour ECOLE PAY.
+ * Données de démonstration pour SCHOOL PAY.
  * Usage : npm run db:seed
  *
  * Crée une école complète (directeur, secrétaire, classes mensuelles, à

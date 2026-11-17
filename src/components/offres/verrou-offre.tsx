@@ -32,7 +32,7 @@ export function VerrouOffre({
 }) {
   const requise = offreRequise(cle);
   const info = OFFRES[requise];
-  const message = `Bonjour ECOLE PAY, je souhaite passer à l'offre ${requise} pour débloquer ${titre}.`;
+  const message = `Bonjour SCHOOL PAY, je souhaite passer à l'offre ${requise} pour débloquer ${titre}.`;
 
   return (
     <div className="mx-auto max-w-2xl py-8">

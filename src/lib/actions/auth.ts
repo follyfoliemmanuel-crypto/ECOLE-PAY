@@ -589,7 +589,7 @@ export async function demanderReinitialisation(
     ? ({ ok: false } as const)
     : await envoyerEmail({
         to: email,
-        subject: "Réinitialisation de votre mot de passe — ECOLE PAY",
+        subject: "Réinitialisation de votre mot de passe — SCHOOL PAY",
         html: modeleEmailReinitialisation(lien, utilisateur.nom),
       });
 

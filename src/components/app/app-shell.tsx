@@ -121,7 +121,7 @@ export function AppShell({
       {/* ---------------- Barre latérale (desktop) ---------------- */}
       <aside className="sticky top-0 hidden h-dvh flex-col border-r border-white/5 bg-brand-deep lg:flex">
         <div className="flex h-16 items-center border-b border-white/10 px-5">
-          <Link href="/app" aria-label="Accueil ECOLE PAY">
+          <Link href="/app" aria-label="Accueil SCHOOL PAY">
             <Logo ton="clair" />
           </Link>
         </div>
@@ -178,7 +178,7 @@ export function AppShell({
       <div className="flex min-h-dvh flex-col">
         <header className="sticky top-0 z-30 border-b border-line bg-canvas/95 backdrop-blur lg:hidden">
           <div className="flex h-14 items-center justify-between gap-3 px-4">
-            <Link href="/app" aria-label="Accueil ECOLE PAY">
+            <Link href="/app" aria-label="Accueil SCHOOL PAY">
               <Logo compact />
             </Link>
             <div className="min-w-0 flex-1">

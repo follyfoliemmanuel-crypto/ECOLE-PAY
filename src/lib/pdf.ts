@@ -66,7 +66,7 @@ function enTete(
   doc.setTextColor(255, 255, 255);
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9);
-  doc.text("ÉCOLE PAY", 14, 12);
+  doc.text("SCHOOL PAY", 14, 12);
   doc.setFontSize(15);
   doc.text(ecole.nom, 14, 21);
 
@@ -108,7 +108,7 @@ function piedDePage(doc: jsPDF) {
     doc.setFontSize(7.5);
     doc.setTextColor(...GRIS);
     doc.text(
-      "Document généré par ECOLE PAY — à conserver avec les justificatifs de caisse.",
+      "Document généré par SCHOOL PAY — à conserver avec les justificatifs de caisse.",
       14,
       hauteur - 10,
     );

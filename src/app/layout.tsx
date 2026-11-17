@@ -19,12 +19,12 @@ const jetbrains = JetBrains_Mono({
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
   title: {
-    default: "ECOLE PAY — Gestion des frais scolaires",
-    template: "%s · ECOLE PAY",
+    default: "SCHOOL PAY — Gestion des frais scolaires",
+    template: "%s · SCHOOL PAY",
   },
   description:
     "L'application des écoles privées au Togo pour suivre les frais de scolarité, envoyer les reçus WhatsApp et relancer les impayés.",
-  applicationName: "ECOLE PAY",
+  applicationName: "SCHOOL PAY",
   keywords: [
     "frais scolaires",
     "école privée",
@@ -33,17 +33,17 @@ export const metadata: Metadata = {
     "reçu WhatsApp",
     "gestion scolaire",
   ],
-  authors: [{ name: "ECOLE PAY" }],
+  authors: [{ name: "SCHOOL PAY" }],
   appleWebApp: {
     capable: true,
-    title: "ECOLE PAY",
+    title: "SCHOOL PAY",
     statusBarStyle: "black-translucent",
   },
   openGraph: {
     type: "website",
     locale: "fr_TG",
-    siteName: "ECOLE PAY",
-    title: "ECOLE PAY — Gestion des frais scolaires",
+    siteName: "SCHOOL PAY",
+    title: "SCHOOL PAY — Gestion des frais scolaires",
     description:
       "L'application des écoles privées au Togo pour suivre les frais de scolarité, envoyer les reçus WhatsApp et relancer les impayés.",
     images: ["/logo-ecole-pay.png"],

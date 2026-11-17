@@ -123,7 +123,7 @@ export async function creerEleve(
   const effectif = await compterElevesActifs(session.ecoleId, annee);
   if (limite.eleves !== null && effectif >= limite.eleves) {
     return {
-      error: `Votre offre ${offreEffective(session.ecole)} est limitée à ${limite.eleves} élèves. Contactez ECOLE PAY pour passer à une offre supérieure.`,
+      error: `Votre offre ${offreEffective(session.ecole)} est limitée à ${limite.eleves} élèves. Contactez SCHOOL PAY pour passer à une offre supérieure.`,
     };
   }
 

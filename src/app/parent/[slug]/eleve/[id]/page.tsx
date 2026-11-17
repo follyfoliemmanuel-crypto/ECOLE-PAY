@@ -516,7 +516,7 @@ export default async function PageElevePortail({
 
       <footer className="mx-auto max-w-4xl px-4 pb-8 pt-2 text-center text-[10.5px] leading-relaxed text-muted sm:px-6">
         <p>
-          Bulletin officiel de {ecole.nom} · ECOLE PAY
+          Bulletin officiel de {ecole.nom} · SCHOOL PAY
         </p>
         <p className="mt-1 text-muted/70">
           Seules les notes de cet élève sont affichées. Aucun classement complet

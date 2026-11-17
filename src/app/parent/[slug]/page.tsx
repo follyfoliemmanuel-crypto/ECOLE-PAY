@@ -292,7 +292,7 @@ function PiedDePage() {
   return (
     <footer className="mx-auto max-w-3xl px-4 pb-8 pt-2 text-center text-[10.5px] leading-relaxed text-muted sm:px-6">
       <p>
-        Portail officiel des notes · {libelleAnnee(anneeScolaire())} · ECOLE PAY
+        Portail officiel des notes · {libelleAnnee(anneeScolaire())} · SCHOOL PAY
       </p>
       <p className="mt-1 text-muted/70">
         Ne partagez pas le lien de la fiche de votre enfant avec une autre

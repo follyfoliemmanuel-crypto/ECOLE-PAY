@@ -1,8 +1,8 @@
-# ECOLE PAY
+# SCHOOL PAY
 
 Gestion des frais de scolarité pour les écoles privées du Togo.
 
-ECOLE PAY est un SaaS multi-école : chaque établissement gère ses classes, ses
+SCHOOL PAY est un SaaS multi-école : chaque établissement gère ses classes, ses
 élèves, ses encaissements et ses relances WhatsApp dans un espace totalement
 isolé. L'interface est en français, les montants en FCFA et les numéros au
 format togolais.
@@ -141,14 +141,14 @@ verified`. Marche à suivre :
 1. Resend → **Domains** → *Add domain* → `ecolepay.tg`.
 2. Recopier chez le registrar les enregistrements **SPF**, **DKIM** et
    **DMARC** fournis, puis attendre le statut *Verified*.
-3. Garder `EMAIL_FROM="ECOLE PAY <noreply@ecolepay.tg>"` : l'envoi fonctionne
+3. Garder `EMAIL_FROM="SCHOOL PAY <noreply@ecolepay.tg>"` : l'envoi fonctionne
    alors vers n'importe quel destinataire.
 
 Sans domaine vérifié, seul le **domaine sandbox** `onboarding@resend.dev`
 fonctionne, et **uniquement vers l'adresse du titulaire du compte Resend** :
 
 ```env
-EMAIL_FROM="ECOLE PAY <onboarding@resend.dev>"
+EMAIL_FROM="SCHOOL PAY <onboarding@resend.dev>"
 ```
 
 L'inscription sur Resend doit donc être faite avec l'adresse qui recevra les
@@ -339,7 +339,7 @@ src/
 ## Application Windows (.exe) et mises à jour automatiques
 
 L'application de bureau est une **coque Electron mince** : elle affiche le site
-ECOLE PAY hébergé, avec sa propre fenêtre, son icône et son menu. Elle ne
+SCHOOL PAY hébergé, avec sa propre fenêtre, son icône et son menu. Elle ne
 contient ni base de données ni logique métier.
 
 Conséquence importante pour la V2 : **le site continue d'être mis à jour sur
@@ -435,7 +435,7 @@ retélécharger l'installeur.
 
 Le site est une PWA installable : sur Android, « Ajouter à l'écran
 d'accueil » ; sur iPhone, Partager → « Sur l'écran d'accueil ». L'application
-s'ouvre alors en plein écran avec l'icône ECOLE PAY, sans passer par un store.
+s'ouvre alors en plein écran avec l'icône SCHOOL PAY, sans passer par un store.
 
 ---
 

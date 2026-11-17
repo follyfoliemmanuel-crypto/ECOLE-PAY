@@ -1,5 +1,5 @@
 /**
- * Coordonnées commerciales d'ECOLE PAY.
+ * Coordonnées commerciales d'SCHOOL PAY.
  *
  * ⚠️ Ce module est réservé aux composants serveur : il lit `process.env`
  * dynamiquement. Dans un composant client, utilisez la variable littérale
@@ -28,7 +28,7 @@ export const COMMERCIAL = {
   /** Numéro TMoney (Togocom) pour le paiement des formules. */
   tmoney: env("NEXT_PUBLIC_TMONEY_NUMBER", "+228 70309744"),
   /** Nom du bénéficiaire des transferts Mobile Money. */
-  beneficiaire: env("NEXT_PUBLIC_MONEY_BENEFICIAIRE", "ECOLE PAY SARL"),
+  beneficiaire: env("NEXT_PUBLIC_MONEY_BENEFICIAIRE", "SCHOOL PAY SARL"),
   /** Adresse publique du site. */
   siteUrl: env("NEXT_PUBLIC_SITE_URL", "https://ecolepay.tg"),
   /** Lien de téléchargement de l'application Windows (.exe). */

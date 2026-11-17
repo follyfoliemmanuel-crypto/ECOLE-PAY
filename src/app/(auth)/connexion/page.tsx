@@ -48,7 +48,7 @@ export default async function PageConnexion({
 
       <div className="mt-8 border-t border-line pt-5">
         <p className="text-[13px] text-muted">
-          Votre école n&apos;est pas encore sur ECOLE PAY ?{" "}
+          Votre école n&apos;est pas encore sur SCHOOL PAY ?{" "}
           <Link
             href="/inscription"
             className="font-semibold text-brand underline-offset-4 hover:underline"

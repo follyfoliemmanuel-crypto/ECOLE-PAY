@@ -1,5 +1,5 @@
 -- ===========================================================================
---  ECOLE PAY — Rôle PostgreSQL applicatif à privilèges réduits
+--  SCHOOL PAY — Rôle PostgreSQL applicatif à privilèges réduits
 --
 --  L'application n'a besoin que de lire et écrire des données : elle ne crée
 --  ni ne modifie jamais le schéma. Ce script crée donc un rôle qui ne peut

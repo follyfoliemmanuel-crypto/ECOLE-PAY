@@ -20,7 +20,7 @@ export function BanniereMiseAJour() {
       <p className="flex items-center gap-2">
         <Download size={14} aria-hidden />
         <span>
-          ECOLE PAY{" "}
+          SCHOOL PAY{" "}
           <span className="chiffre font-semibold">
             {etat.versionDisponible ?? ""}
           </span>{" "}

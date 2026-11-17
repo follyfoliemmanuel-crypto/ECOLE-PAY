@@ -43,7 +43,7 @@ try {
   await client.connect();
   console.log("→ Application du schéma…");
   await client.query(schema);
-  console.log("✅ Schéma ECOLE PAY appliqué.");
+  console.log("✅ Schéma SCHOOL PAY appliqué.");
 } catch (erreur) {
   console.error("❌ Échec :", erreur.message);
   process.exitCode = 1;

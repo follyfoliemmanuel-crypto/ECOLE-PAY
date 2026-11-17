@@ -47,7 +47,7 @@ export default async function PageBlocage() {
 
   const messageWhatsApp = (offre: Offre) =>
     encodeURIComponent(
-      `Bonjour ECOLE PAY, je souhaite activer l'offre ${offre} (${formatFCFA(OFFRES[offre].prix)} / mois) pour mon école "${session.ecole.nom}". Compte : ${session.email}. Je vous envoie la capture du paiement Flooz / TMoney.`,
+      `Bonjour SCHOOL PAY, je souhaite activer l'offre ${offre} (${formatFCFA(OFFRES[offre].prix)} / mois) pour mon école "${session.ecole.nom}". Compte : ${session.email}. Je vous envoie la capture du paiement Flooz / TMoney.`,
     );
 
   return (
@@ -227,7 +227,7 @@ export default async function PageBlocage() {
               </a>
               <a
                 href={`mailto:${ACTIVATION.email}?subject=${encodeURIComponent(
-                  `Activation ECOLE PAY — ${session.ecole.nom}`,
+                  `Activation SCHOOL PAY — ${session.ecole.nom}`,
                 )}&body=${messageWhatsApp("PRO")}`}
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-sm border border-line-strong bg-surface px-4 text-[13.5px] font-semibold text-ink-2 transition-colors hover:bg-surface-2"
               >
