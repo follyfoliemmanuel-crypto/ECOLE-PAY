@@ -15,6 +15,7 @@ import {
   listerEcolesSuperAdmin,
   listerJournal,
   listerTentativesRefusees,
+  statistiquesEcoles,
 } from "@/lib/data/super-admin";
 import { formatDate, formatDateHeure, formatNombre } from "@/lib/format";
 import {
@@ -25,10 +26,17 @@ import {
 import { OFFRES } from "@/lib/offres";
 import { Badge } from "@/components/ui/badge";
 import { EntetePage } from "@/components/app/entete-page";
+import { Pagination } from "@/components/ui/pagination";
 import { BoutonsEcole } from "@/components/super-admin/boutons-ecole";
 import { BoutonForcerEssai } from "@/components/super-admin/bouton-forcer-essai";
 
 export const metadata: Metadata = { title: "Super admin" };
+
+const PAR_PAGE = 20;
+
+function numeroPage(valeur?: string): number {
+  return Math.max(1, Number.parseInt(valeur ?? "1", 10) || 1);
+}
 
 function BadgeStatutEcole({
   statut,
@@ -90,20 +98,36 @@ function CarteIndicateur({
   );
 }
 
-export default async function PageSuperAdmin() {
+export default async function PageSuperAdmin({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; refus?: string; journal?: string }>;
+}) {
   await exigerSuperAdmin();
+  const parametres = await searchParams;
 
   const annee = anneeScolaire();
-  const ecoles = await listerEcolesSuperAdmin(annee);
-  const refus = await listerTentativesRefusees();
-  const journal = await listerJournal();
+  const pageEcoles = numeroPage(parametres.page);
+  const pageRefus = numeroPage(parametres.refus);
+  const pageJournal = numeroPage(parametres.journal);
+
+  const [ecolesPage, refusPage, journalPage, stats] = await Promise.all([
+    listerEcolesSuperAdmin(annee, { page: pageEcoles, parPage: PAR_PAGE }),
+    listerTentativesRefusees({ page: pageRefus, parPage: PAR_PAGE }),
+    listerJournal({ page: pageJournal, parPage: PAR_PAGE }),
+    statistiquesEcoles(annee),
+  ]);
+
+  const ecoles = ecolesPage.lignes;
+  const refus = refusPage.lignes;
+  const journal = journalPage.lignes;
   const aujourdhui = dateDuJour();
 
-  const actives = ecoles.filter((ecole) => ecole.statut === "ACTIF").length;
-  const essais = ecoles.filter((ecole) => ecole.statut === "ESSAI").length;
-  const bloquees = ecoles.filter((ecole) => ecole.statut === "BLOQUE").length;
-  const eleves = ecoles.reduce((total, ecole) => total + ecole.nb_eleves, 0);
-  const refusEnAttente = refus.filter((tentative) => !tentative.traite).length;
+  const actives = stats.actives;
+  const essais = stats.essais;
+  const bloquees = stats.bloquees;
+  const eleves = stats.eleves;
+  const refusEnAttente = refusPage.enAttente;
 
   return (
     <div>
@@ -116,7 +140,7 @@ export default async function PageSuperAdmin() {
       <div className="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <CarteIndicateur
           titre="Écoles"
-          valeur={formatNombre(ecoles.length)}
+          valeur={formatNombre(stats.total)}
           detail={`${formatNombre(eleves)} élèves actifs`}
           icone={<Building2 size={15} aria-hidden />}
           accent="border-brand/15 bg-brand-soft text-brand"
@@ -151,8 +175,8 @@ export default async function PageSuperAdmin() {
               Toutes les écoles
             </h2>
             <p className="mt-0.5 text-[11.5px] text-muted">
-              {formatNombre(ecoles.length)} école
-              {ecoles.length > 1 ? "s" : ""} · statut, échéance et activation
+              {formatNombre(ecolesPage.total)} école
+              {ecolesPage.total > 1 ? "s" : ""} · statut, échéance et activation
             </p>
           </div>
           <span className="inline-flex items-center gap-1.5 text-[11px] text-muted">
@@ -264,6 +288,17 @@ export default async function PageSuperAdmin() {
             </table>
           </div>
         )}
+
+        {ecolesPage.total > PAR_PAGE && (
+          <Pagination
+            page={pageEcoles}
+            total={ecolesPage.total}
+            parPage={PAR_PAGE}
+            basePath="/super-admin"
+            parametres={{ refus: parametres.refus, journal: parametres.journal }}
+            libelle="écoles"
+          />
+        )}
       </section>
 
       <section className="card mt-6 overflow-hidden">
@@ -357,6 +392,17 @@ export default async function PageSuperAdmin() {
             </table>
           </div>
         )}
+
+        {refusPage.total > PAR_PAGE && (
+          <Pagination
+            page={pageRefus}
+            total={refusPage.total}
+            parPage={PAR_PAGE}
+            basePath="/super-admin"
+            parametres={{ page: parametres.page, journal: parametres.journal }}
+            libelle="refus"
+          />
+        )}
       </section>
 
       <section className="card mt-6 overflow-hidden">
@@ -372,8 +418,9 @@ export default async function PageSuperAdmin() {
             </p>
           </div>
           <span className="text-[11px] text-muted">
-            {formatNombre(journal.length)} dernière
-            {journal.length > 1 ? "s" : ""} action{journal.length > 1 ? "s" : ""}
+            {formatNombre(journalPage.total)} action
+            {journalPage.total > 1 ? "s" : ""} journalisée
+            {journalPage.total > 1 ? "s" : ""}
           </span>
         </div>
 
@@ -430,6 +477,19 @@ export default async function PageSuperAdmin() {
           </div>
         )}
       </section>
+
+      {journalPage.total > PAR_PAGE && (
+        <div className="card mt-4 overflow-hidden">
+          <Pagination
+            page={pageJournal}
+            total={journalPage.total}
+            parPage={PAR_PAGE}
+            basePath="/super-admin"
+            parametres={{ page: parametres.page, refus: parametres.refus }}
+            libelle="actions"
+          />
+        </div>
+      )}
 
       <p className="mt-4 text-[11.5px] leading-relaxed text-muted">
         Règles appliquées : une école en essai est bloquée dès que sa date de fin

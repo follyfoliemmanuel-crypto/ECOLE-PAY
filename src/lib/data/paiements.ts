@@ -46,7 +46,8 @@ export type FiltresPaiements = {
   frequence: Frequence;
   periode: number;
   mode?: ModePaiement | "tous";
-  limite?: number;
+  page?: number;
+  parPage?: number;
 };
 
 /** Paiement enrichi du parent : nécessaire pour préparer le reçu WhatsApp. */
@@ -61,15 +62,18 @@ export async function listerPaiements({
   frequence,
   periode,
   mode = "tous",
-  limite = 80,
+  page = 1,
+  parPage = 20,
 }: FiltresPaiements): Promise<{
   paiements: PaiementListe[];
   total: number;
   montant: number;
   montantInscriptions: number;
   annules: number;
+  parMode: Record<ModePaiement, number>;
 }> {
   const filtreMode = mode === "tous" ? null : mode;
+  const offset = Math.max(0, (page - 1) * parPage);
 
   const [paiements, total] = await Promise.all([
     sql<PaiementListe>(
@@ -99,22 +103,31 @@ export async function listerPaiements({
             or p.type_frais in ('INSCRIPTION', 'REINSCRIPTION')
           )
           and ($5::text is null or p.mode_paiement = $5)
-        order by p.date_paiement desc
-        limit $6`,
-      [ecoleId, annee, frequence, periode, filtreMode, limite],
+        order by p.date_paiement desc, p.id
+        limit $6 offset $7`,
+      [ecoleId, annee, frequence, periode, filtreMode, parPage, offset],
     ),
     uneLigne<{
       total: number;
       montant: number;
       montant_inscriptions: number;
       annules: number;
+      montant_especes: number;
+      montant_flooz: number;
+      montant_tmoney: number;
     }>(
       `select count(*)::int as total,
               coalesce(sum(case when p.annule = false then p.montant else 0 end), 0)::int as montant,
               coalesce(sum(case when p.annule = false
                                  and p.type_frais in ('INSCRIPTION', 'REINSCRIPTION')
                                 then p.montant else 0 end), 0)::int as montant_inscriptions,
-              count(*) filter (where p.annule = true)::int as annules
+              count(*) filter (where p.annule = true)::int as annules,
+              coalesce(sum(case when p.annule = false and p.mode_paiement = 'ESPECES'
+                                then p.montant else 0 end), 0)::int as montant_especes,
+              coalesce(sum(case when p.annule = false and p.mode_paiement = 'FLOOZ'
+                                then p.montant else 0 end), 0)::int as montant_flooz,
+              coalesce(sum(case when p.annule = false and p.mode_paiement = 'TMONEY'
+                                then p.montant else 0 end), 0)::int as montant_tmoney
          from paiements p
          join frais f on f.id = p.frais_id
         where p.ecole_id = $1
@@ -136,6 +149,11 @@ export async function listerPaiements({
     montant: total?.montant ?? 0,
     montantInscriptions: total?.montant_inscriptions ?? 0,
     annules: total?.annules ?? 0,
+    parMode: {
+      ESPECES: total?.montant_especes ?? 0,
+      FLOOZ: total?.montant_flooz ?? 0,
+      TMONEY: total?.montant_tmoney ?? 0,
+    },
   };
 }
 

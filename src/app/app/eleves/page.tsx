@@ -33,7 +33,7 @@ import { estUuid } from "@/lib/actions/helpers";
 
 export const metadata: Metadata = { title: "Élèves" };
 
-const PAR_PAGE = 40;
+const PAR_PAGE = 20;
 
 export default async function PageEleves({
   searchParams,

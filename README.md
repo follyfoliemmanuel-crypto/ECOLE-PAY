@@ -162,6 +162,7 @@ demande. Rien n'a besoin d'un serveur permanent.
    | `RESEND_API_KEY` | non | active les emails de réinitialisation |
    | `EMAIL_FROM` | non | `SCHOOL PAY <noreply@schoolpay.tg>` |
    | `WHATSAPP_TOKEN` + `WHATSAPP_PHONE_ID` | non | envoi direct des bulletins |
+   | `CRON_SECRET` | non* | 32 caractères, protège `/api/taches` |
    | `NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL` | non | lien public du `.exe` |
    | `NEXT_PUBLIC_CONTACT_*` | non | coordonnées commerciales affichées |
 
@@ -170,6 +171,10 @@ demande. Rien n'a besoin d'un serveur permanent.
    ```bash
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```
+
+   \* `CRON_SECRET` est obligatoire dès que `WHATSAPP_TOKEN` et
+   `WHATSAPP_PHONE_ID` sont renseignés : c'est le secret partagé avec le cron
+   Vercel qui déclenche le worker `/api/taches`.
 
 5. **Déployer**, puis vérifier :
 
@@ -213,11 +218,19 @@ de `sslmode=require` ou une connexion Neon non poolée.
 
 ### 6. Ce qu'il faut savoir sur les fonctions serverless
 
-- Un pool PostgreSQL par instance : garder la connexion *pooled* Neon.
+- Un pool PostgreSQL par instance, volontairement petit (`max: 3`) : garder la
+  connexion *pooled* Neon. C'est ce qui permet de tenir avec le plan gratuit.
 - Le bulletin PDF déclare `maxDuration = 30` s ; les plans Vercel limitent la
   durée maximale (10 s en Hobby par défaut, configurable jusqu'à 60 s).
-- Aucun cron n'est configuré : les relances WhatsApp restent déclenchées par le
-  directeur depuis l'application.
+- **File d'attente** : les bulletins WhatsApp sont empilés dans la table
+  `taches` puis envoyés par le worker `/api/taches`. L'action rend la main
+  immédiatement (`after()`), et le cron Vercel reprend le reste.
+- `vercel.json` planifie le worker **une fois par jour à 03:00 UTC** : c'est la
+  fréquence autorisée par le plan Hobby. En Pro, passer à `*/5 * * * *` pour un
+  envoi quasi immédiat même si l'utilisateur ferme l'onglet.
+- Le worker purge aussi les tables techniques (`login_attempts` 30 j,
+  `rate_limits` 1 j, `journal_actions` 90 j, `password_resets` expirés,
+  `taches` terminées 30 j). Aucune donnée scolaire n'est supprimée.
 - Togo = UTC : les dates et l'année scolaire ne subissent aucun décalage sur
   Vercel.
 
@@ -292,6 +305,41 @@ Conséquences pratiques :
   motif et l'auteur de l'annulation ;
 - changer le tarif d'une classe ne modifie que les mois non entamés ;
 - changer un élève de classe réajuste ses mois non payés.
+
+### Performance et montée en charge
+
+Le socle est dimensionné pour rester fluide sur le plan gratuit de Neon.
+
+- **Index de lecture** : `eleves (ecole_id, classe_id)`,
+  `frais (ecole_id, annee_scolaire, type_frais, frequence_paiement, periode)`,
+  `notes (ecole_id, eleve_id)`, `paiements (ecole_id, date_paiement desc)
+  where annule = false`, plus les index historiques (recherche par nom,
+  portail, statut d'école).
+- **Pagination 20** : élèves, paiements, impayés, écoles, journal d'audit et
+  inscriptions refusées. Les totaux (montants, effectifs, nombre de pages) sont
+  calculés en base, jamais en JavaScript sur la page affichée.
+- **Aucun gros calcul dans une page** : PDF de bulletin et envois WhatsApp sont
+  exécutés par le worker, hors de la requête utilisateur.
+- **Pool frugal** : 3 connexions maximum par instance, coupure des requêtes à
+  15 s (`statement_timeout`), 8 s pour obtenir une connexion.
+
+Mesures locales sur une école de 500 élèves / 20 classes / 5 500 échéances /
+5 000 paiements / 12 000 notes :
+
+| Mesure | Résultat |
+| --- | --- |
+| Tableau de bord (7 requêtes parallèles) | 113 ms médiane |
+| Fiche portail d'un élève | 6 ms |
+| Stockage d'une année complète | 7,4 Mo |
+
+Capacité indicative :
+
+| Configuration | Écoles | Utilisateurs simultanés |
+| --- | --- | --- |
+| Neon Free + Vercel Hobby | 30 à 50 | 10 à 25 |
+| Neon Launch + Vercel Pro | 500 à 800 | 100 à 200 |
+
+Surveiller la latence p95 (< 800 ms), le CPU Neon (< 70 %) et `/api/sante`.
 
 ### Rôles
 
@@ -419,6 +467,8 @@ src/
     super-admin/             Liste des écoles et activation des offres
     blocage/                 Écran affiché quand l'essai ou l'abonnement expire
     api/eleves/              Recherche et frais d'un élève (JSON)
+    api/taches/              Worker de la file d'attente (cron Vercel)
+    api/sante/               Sonde de santé (/api/sante)
     icon.png                 Favicon / icône Android
     apple-icon.png           Icône iOS
     manifest.ts              Manifeste PWA
@@ -431,6 +481,8 @@ src/
     offres.ts                Prix, limites et fonctionnalités des 3 offres
     config.ts                Coordonnées commerciales
     db.ts                    Pool PostgreSQL et transactions
+    file-attente.ts          File d'attente persistante (table taches)
+    worker-taches.ts         Traitement des tâches et purge des tables techniques
     whatsapp.ts              Modèles de messages et liens wa.me
     pdf.ts                   Exports PDF
 ```

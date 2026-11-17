@@ -125,6 +125,18 @@ if (whatsapp.some(Boolean) && !whatsapp.every(Boolean)) {
   );
 }
 
+const cronSecret = valeur("CRON_SECRET");
+if (production && cronSecret.length < 32) {
+  erreurs.push(
+    "CRON_SECRET : 32 caractères minimum (worker /api/taches et cron Vercel).",
+  );
+}
+if (whatsapp.every(Boolean) && !cronSecret) {
+  avertissements.push(
+    "CRON_SECRET absent : les bulletins WhatsApp seront mis en file mais le worker ne pourra pas être déclenché par le cron.",
+  );
+}
+
 console.log(
   `Vérification de l'environnement (${production ? "production" : "développement"}${source ? `, ${source}` : ""})`,
 );

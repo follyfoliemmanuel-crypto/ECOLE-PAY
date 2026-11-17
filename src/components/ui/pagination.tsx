@@ -8,12 +8,15 @@ export function Pagination({
   parPage,
   basePath,
   parametres,
+  libelle = "élèves",
 }: {
   page: number;
   total: number;
   parPage: number;
   basePath: string;
   parametres: Record<string, string | undefined>;
+  /** Nom au pluriel de ce qui est compté (« élèves », « paiements »…). */
+  libelle?: string;
 }) {
   const pages = Math.max(1, Math.ceil(total / parPage));
   if (pages <= 1) return null;
@@ -30,7 +33,8 @@ export function Pagination({
   return (
     <div className="flex items-center justify-between border-t border-line px-4 py-3 text-[13px] text-muted">
       <span>
-        <span className="chiffre text-ink">{total}</span> élève{total > 1 ? "s" : ""}
+        <span className="chiffre text-ink">{total}</span>{" "}
+        {total > 1 ? libelle : libelle.replace(/s$/, "")}
       </span>
       <div className="flex items-center gap-1">
         {page > 1 ? (

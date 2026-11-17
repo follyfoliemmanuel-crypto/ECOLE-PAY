@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { estDirecteur, getSession } from "../auth";
 import { sql, uneLigne } from "../db";
 import { peut } from "../offres";
@@ -19,12 +20,10 @@ import {
   rechercherElevesPubliques,
   type EcolePublique,
 } from "../data/portail";
-import { construirePdfBulletin } from "../pdf-bulletin";
 import { lienWhatsApp } from "../whatsapp";
-import {
-  envoyerBulletinWhatsApp,
-  whatsappCloudConfigure,
-} from "../whatsapp-cloud";
+import { whatsappCloudConfigure } from "../whatsapp-cloud";
+import { empilerTache } from "../file-attente";
+import { viderFile } from "../worker-taches";
 import { estUuid, messageErreurBdd, texte } from "./helpers";
 import { slugValide } from "../validation";
 import type { ResultatAction, Trimestre } from "../types";
@@ -284,53 +283,32 @@ export async function publierBulletins(
     const lienPdf = lienBulletinPdf(ecole.slug, eleve.id, trimestre);
     const message = `Bonjour, le bulletin de ${eleve.prenom} ${eleve.nom} (${bulletin.classe.nom}) pour le ${libelleTrimestre(trimestre)} est disponible. Notes et rang : ${lienEleve} — PDF : ${lienPdf}. ${ecole.nom}.`;
 
-    let statut: "LIEN_PRET" | "ENVOYE" | "ECHEC" = "LIEN_PRET";
+    let statut: "EN_ATTENTE" | "ENVOYE" | "LIEN_PRET" | "ECHEC" = "LIEN_PRET";
     let erreur: string | null = null;
-    let urlWhatsApp = lienWhatsApp(telephone, message);
+    const urlWhatsApp = lienWhatsApp(telephone, message);
 
     if (cloud) {
-      try {
-        const pdf = construirePdfBulletin({
-          ecole: {
-            nom: ecole.nom,
-            adresse: ecole.adresse,
-            telephone: ecole.telephone,
-          },
-          eleve: { nom: eleve.nom, prenom: eleve.prenom },
-          classe: bulletin.classe.nom,
+      // Aucun PDF, aucun appel HTTP dans cette requête : on empile la tâche et
+      // on rend la main immédiatement. Le worker `/api/taches` génère le PDF
+      // et envoie le message quelques secondes plus tard.
+      const tache = await empilerTache({
+        ecoleId: session.ecoleId,
+        type: "BULLETIN_WHATSAPP",
+        charge: {
+          eleve_id: eleve.id,
+          telephone,
           annee,
           trimestre,
-          lignes: eleve.lignes,
-          total_coefficients: eleve.total_coefficients,
-          total_points: eleve.total_points,
-          moyenne: eleve.moyenne,
-          rang: eleve.rang,
-          effectif: bulletin.eleves.length,
-          mention: eleve.mention,
-        });
+          message,
+        },
+      });
 
-        const resultat = await envoyerBulletinWhatsApp({
-          telephone,
-          pdf,
-          nomFichier: `bulletin-${eleve.nom.toLowerCase()}-${trimestre}.pdf`,
-          legende: message,
-        });
-
-        if (resultat.ok) {
-          statut = "ENVOYE";
-          envoyes += 1;
-        } else {
-          statut = "ECHEC";
-          erreur = resultat.erreur ?? "Envoi WhatsApp impossible.";
-          erreurs += 1;
-          urlWhatsApp = lienWhatsApp(telephone, message);
-        }
-      } catch (exception) {
+      if (tache) {
+        statut = "EN_ATTENTE";
+        envoyes += 1;
+      } else {
         statut = "ECHEC";
-        erreur =
-          exception instanceof Error
-            ? exception.message
-            : "Erreur pendant la génération du bulletin.";
+        erreur = "File d'attente indisponible.";
         erreurs += 1;
       }
     } else {
@@ -338,19 +316,18 @@ export async function publierBulletins(
     }
 
     try {
-      const envoyeLe = statut === "ENVOYE" ? new Date().toISOString() : null;
       await sql(
         `insert into bulletin_envois
            (ecole_id, eleve_id, annee_scolaire, trimestre, telephone,
             statut, message, url_whatsapp, erreur, envoye_le)
-         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10::timestamptz)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9, null)
          on conflict (eleve_id, annee_scolaire, trimestre)
          do update set telephone = excluded.telephone,
                        statut = excluded.statut,
                        message = excluded.message,
                        url_whatsapp = excluded.url_whatsapp,
                        erreur = excluded.erreur,
-                       envoye_le = excluded.envoye_le,
+                       envoye_le = null,
                        date_creation = now()`,
         [
           session.ecoleId,
@@ -362,7 +339,6 @@ export async function publierBulletins(
           message,
           urlWhatsApp,
           erreur,
-          envoyeLe,
         ],
       );
     } catch (exception) {
@@ -380,8 +356,23 @@ export async function publierBulletins(
   revalidatePath("/app/notes/bulletins");
   revalidatePath("/app/notes");
 
+  // Démarre l'envoi juste après la réponse : le directeur n'attend pas les
+  // PDF, et le cron `/api/taches` reprend tout ce qui resterait en file.
+  if (cloud && envoyes > 0) {
+    after(async () => {
+      try {
+        await viderFile({ limite: 5, secondesMax: 20 });
+      } catch (exception) {
+        console.error("Envoi des bulletins en arrière-plan :", {
+          message:
+            exception instanceof Error ? exception.message : "inconnue",
+        });
+      }
+    });
+  }
+
   const resume = cloud
-    ? `${envoyes} bulletin${envoyes > 1 ? "s" : ""} envoyé${envoyes > 1 ? "s" : ""} sur WhatsApp${erreurs > 0 ? ` · ${erreurs} échec${erreurs > 1 ? "s" : ""}` : ""}.`
+    ? `${envoyes} bulletin${envoyes > 1 ? "s" : ""} mis en file d'envoi WhatsApp${erreurs > 0 ? ` · ${erreurs} échec${erreurs > 1 ? "s" : ""}` : ""}. L'envoi se poursuit en arrière-plan : vous pouvez continuer à travailler.`
     : `${liens} lien${liens > 1 ? "s" : ""} WhatsApp prêt${liens > 1 ? "s" : ""}. WhatsApp Cloud API n'est pas encore configurée : les liens sont disponibles ci-dessous pour un envoi immédiat.`;
 
   return {

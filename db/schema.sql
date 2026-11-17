@@ -1727,4 +1727,42 @@ select distinct n.ecole_id, n.annee_scolaire, n.trimestre, e.classe_id,
   join eleves e on e.id = n.eleve_id
 on conflict do nothing;
 
+-- ===========================================================================
+--  PERFORMANCE — index de lecture, purge et file d'attente
+-- ===========================================================================
+
+-- Multi-tenant : toutes les lectures filtrent d'abord par ecole_id.
+create index if not exists eleves_ecole_classe_idx
+  on eleves (ecole_id, classe_id);
+create index if not exists frais_ecole_annee_type_idx
+  on frais (ecole_id, annee_scolaire, type_frais, frequence_paiement, periode);
+create index if not exists notes_ecole_eleve_idx
+  on notes (ecole_id, eleve_id);
+create index if not exists paiements_ecole_date_valides_idx
+  on paiements (ecole_id, date_paiement desc) where annule = false;
+create index if not exists login_attempts_date_idx
+  on login_attempts (date_creation desc);
+
+-- File d'attente persistante : les envois WhatsApp (bulletins) et les tâches
+-- d'entretien passent par un worker Vercel, jamais par la requête de l'utilisateur.
+create table if not exists taches (
+  id            uuid        primary key default gen_random_uuid(),
+  ecole_id      uuid        references ecoles (id) on delete cascade,
+  type          text        not null
+                check (type in ('BULLETIN_WHATSAPP')),
+  statut        text        not null default 'EN_ATTENTE'
+                check (statut in ('EN_ATTENTE', 'EN_COURS', 'TERMINE', 'ECHEC')),
+  charge        jsonb       not null default '{}'::jsonb,
+  tentatives    integer     not null default 0,
+  erreur        text,
+  execute_apres timestamptz not null default now(),
+  date_creation timestamptz not null default now(),
+  updated_at    timestamptz not null default now()
+);
+
+create index if not exists taches_file_idx
+  on taches (statut, execute_apres);
+create index if not exists taches_ecole_idx
+  on taches (ecole_id, date_creation desc);
+
 commit;

@@ -29,12 +29,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PeriodeSelect } from "@/components/ui/periode-select";
 import { BoutonAnnulationPaiement } from "@/components/paiements/bouton-annulation";
 import { FiltresPaiements } from "@/components/paiements/filtres-paiements";
+import { Pagination } from "@/components/ui/pagination";
 import { ExportPaiementsCSV } from "@/components/paiements/export-paiements-csv";
 import { EntetePage } from "@/components/app/entete-page";
 
 export const metadata: Metadata = { title: "Paiements" };
 
 const MODES: ModePaiement[] = ["ESPECES", "FLOOZ", "TMONEY"];
+const PAR_PAGE = 20;
 
 function modeDepuisParametre(valeur?: string): ModePaiement | "tous" {
   return MODES.includes(valeur as ModePaiement)
@@ -49,6 +51,7 @@ export default async function PagePaiements({
     frequence?: string;
     periode?: string;
     mode?: string;
+    page?: string;
   }>;
 }) {
   const session = await exigerSession();
@@ -57,6 +60,7 @@ export default async function PagePaiements({
   const frequence = frequenceDepuisParametre(parametres.frequence);
   const periode = periodeDepuisParametre(parametres.periode, frequence);
   const mode = modeDepuisParametre(parametres.mode);
+  const page = Math.max(1, Number.parseInt(parametres.page ?? "1", 10) || 1);
 
   const [ecole, resultat, nbTranches] = await Promise.all([
     getEcole(session.ecoleId),
@@ -66,7 +70,8 @@ export default async function PagePaiements({
       frequence,
       periode,
       mode,
-      limite: 200,
+      page,
+      parPage: PAR_PAGE,
     }),
     nombreTranchesMax(session.ecoleId),
   ]);
@@ -80,9 +85,7 @@ export default async function PagePaiements({
 
   const parMode = MODES.map((valeur) => ({
     valeur,
-    montant: resultat.paiements
-      .filter((p) => !p.annule && p.mode_paiement === valeur)
-      .reduce((somme, p) => somme + p.montant, 0),
+    montant: resultat.parMode[valeur],
   }));
 
   function messageRecu(paiement: (typeof resultat.paiements)[number]): string {
@@ -476,12 +479,18 @@ export default async function PagePaiements({
               ))}
             </ul>
 
-            {resultat.total > resultat.paiements.length && (
-              <p className="border-t border-line bg-surface-2 px-4 py-2.5 text-center text-[11.5px] text-muted">
-                Affichage des {resultat.paiements.length} paiements les plus
-                récents sur {resultat.total}. Affinez avec la période ou le mode.
-              </p>
-            )}
+            <Pagination
+              page={page}
+              total={resultat.total}
+              parPage={PAR_PAGE}
+              basePath="/app/paiements"
+              parametres={{
+                frequence,
+                periode: String(periode),
+                mode: mode === "tous" ? undefined : mode,
+              }}
+              libelle="paiements"
+            />
           </>
         )}
       </div>

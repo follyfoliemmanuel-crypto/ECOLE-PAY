@@ -98,7 +98,7 @@ export async function GET(
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `attachment; filename="${fichier}"`,
-      "Cache-Control": "private, no-store",
+      "Cache-Control": "private, max-age=300",
       "X-Robots-Tag": "noindex, nofollow",
     },
   });

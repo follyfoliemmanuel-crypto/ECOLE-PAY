@@ -27,8 +27,13 @@ export function ExportImpayes({
   annee,
   resume,
   impayes,
+  chargerTous,
   libelle = "Impayés (PDF)",
-}: Commun & { impayes: PdfImpaye[] }) {
+}: Commun & {
+  impayes?: PdfImpaye[];
+  /** Charge la liste complète au clic (la page reste paginée). */
+  chargerTous?: () => Promise<PdfImpaye[]>;
+}) {
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState(false);
 
@@ -36,13 +41,20 @@ export function ExportImpayes({
     setEnCours(true);
     setErreur(false);
     try {
-      exporterImpayesPdf({ ecole, periode, annee, impayes, resume });
+      const liste = chargerTous ? await chargerTous() : (impayes ?? []);
+      if (liste.length === 0) {
+        setErreur(true);
+        return;
+      }
+      exporterImpayesPdf({ ecole, periode, annee, impayes: liste, resume });
     } catch {
       setErreur(true);
     } finally {
       setEnCours(false);
     }
   }
+
+  const vide = !chargerTous && (impayes?.length ?? 0) === 0;
 
   return (
     <span className="inline-flex flex-col items-end gap-1">
@@ -51,9 +63,9 @@ export function ExportImpayes({
         variante="secondaire"
         taille="sm"
         onClick={lancer}
-        disabled={enCours || impayes.length === 0}
+        disabled={enCours || vide}
         title={
-          impayes.length === 0
+          vide
             ? "Aucun impayé à exporter pour cette période"
             : "Télécharger la liste des impayés"
         }

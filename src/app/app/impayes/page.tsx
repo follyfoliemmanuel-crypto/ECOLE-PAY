@@ -34,13 +34,17 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { PeriodeSelect } from "@/components/ui/periode-select";
 import { EntetePage } from "@/components/app/entete-page";
 import { ExportImpayes } from "@/components/app/exports-pdf";
+import { Pagination } from "@/components/ui/pagination";
+import { chargerImpayesExport } from "@/lib/actions/impayes";
 
 export const metadata: Metadata = { title: "Impayés" };
+
+const PAR_PAGE = 20;
 
 export default async function PageImpayes({
   searchParams,
 }: {
-  searchParams: Promise<{ frequence?: string; periode?: string }>;
+  searchParams: Promise<{ frequence?: string; periode?: string; page?: string }>;
 }) {
   const session = await exigerSession();
   const parametres = await searchParams;
@@ -49,10 +53,14 @@ export default async function PageImpayes({
   const annee = anneeScolaire();
   const frequence = frequenceDepuisParametre(parametres.frequence);
   const periode = periodeDepuisParametre(parametres.periode, frequence);
+  const page = Math.max(1, Number.parseInt(parametres.page ?? "1", 10) || 1);
 
   const [ecole, impayesPeriode, dashboard, nbTranches] = await Promise.all([
     getEcole(session.ecoleId),
-    listerImpayes(session.ecoleId, annee, frequence, periode),
+    listerImpayes(session.ecoleId, annee, frequence, periode, {
+      page,
+      parPage: PAR_PAGE,
+    }),
     getDashboard(session.ecoleId, annee, frequence, periode),
     nombreTranchesMax(session.ecoleId),
   ]);
@@ -63,19 +71,10 @@ export default async function PageImpayes({
   const { resume } = dashboard;
   const tauxRecouvrement = pourcentage(resume.encaisse, resume.attendu);
 
-  const pdfImpayes = impayesPeriode.groupes.flatMap((groupe) =>
-    groupe.eleves.map((eleve) => ({
-      nom: eleve.nom,
-      prenom: eleve.prenom,
-      classe: eleve.classe_nom,
-      parent: eleve.nom_parent,
-      telephone: formatTelephone(eleve.telephone_parent),
-      montant_du: eleve.montant_du,
-      montant_paye: eleve.montant_paye,
-      reste: eleve.reste,
-      statut: eleve.statut,
-    })),
-  );
+  async function chargerImpayes() {
+    "use server";
+    return chargerImpayesExport(frequence, String(periode));
+  }
 
   function messageRelance(eleve: Impaye): string {
     const periodeFrais = libelleEcheance(eleve, annee);
@@ -121,7 +120,7 @@ export default async function PageImpayes({
                 periode={nomPeriode}
                 annee={annee}
                 resume={resume}
-                impayes={pdfImpayes}
+                chargerTous={chargerImpayes}
                 libelle="Exporter (PDF)"
               />
             )}
@@ -199,7 +198,7 @@ export default async function PageImpayes({
         </div>
       </div>
 
-      {impayesPeriode.groupes.length === 0 ? (
+      {impayesPeriode.nbLignes === 0 ? (
         <div className="card">
           <EmptyState
             icone={<Check size={18} />}
@@ -229,7 +228,12 @@ export default async function PageImpayes({
         </div>
       ) : (
         <div className="space-y-5">
-          {impayesPeriode.groupes.map((groupe) => (
+          {impayesPeriode.groupes.map((groupe) => {
+            const totalClasse = impayesPeriode.totauxClasses[groupe.classe] ?? {
+              total: groupe.total,
+              nb: groupe.eleves.length,
+            };
+            return (
             <section key={groupe.classe} className="card overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line bg-surface-2 px-4 py-3 sm:px-5">
                 <div className="flex items-center gap-2.5">
@@ -241,8 +245,8 @@ export default async function PageImpayes({
                       {groupe.classe}
                     </h2>
                     <p className="text-[11px] text-muted">
-                      {groupe.eleves.length} échéance
-                      {groupe.eleves.length > 1 ? "s" : ""} à recouvrer
+                      {totalClasse.nb} échéance{totalClasse.nb > 1 ? "s" : ""} à
+                      recouvrer
                     </p>
                   </div>
                 </div>
@@ -251,7 +255,7 @@ export default async function PageImpayes({
                     Reste de la classe
                   </p>
                   <p className="chiffre text-[14px] font-semibold text-impaye">
-                    {formatF(groupe.total)}
+                    {formatF(totalClasse.total)}
                   </p>
                 </div>
               </div>
@@ -415,7 +419,21 @@ export default async function PageImpayes({
                 ))}
               </ul>
             </section>
-          ))}
+            );
+          })}
+        </div>
+      )}
+
+      {impayesPeriode.nbLignes > PAR_PAGE && (
+        <div className="mt-5 card overflow-hidden">
+          <Pagination
+            page={page}
+            total={impayesPeriode.nbLignes}
+            parPage={PAR_PAGE}
+            basePath="/app/impayes"
+            parametres={{ frequence, periode: String(periode) }}
+            libelle="impayés"
+          />
         </div>
       )}
 

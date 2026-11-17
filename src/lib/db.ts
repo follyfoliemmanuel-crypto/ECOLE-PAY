@@ -17,12 +17,20 @@ function creerPool(): Pool {
   const sslRequis =
     /sslmode=(require|verify)/.test(url) || /neon\.tech|supabase\.co/.test(url);
 
+  // Sur Vercel, chaque instance serverless ouvre son propre pool. Avec une
+  // connexion Neon « pooled » (PgBouncer), il faut rester très frugal : 3
+  // connexions par instance suffisent et évitent d'épuiser le plan gratuit
+  // (0,25 vCPU) quand plusieurs écoles cliquent en même temps.
   return new Pool({
     connectionString: url,
     ssl: sslRequis ? { rejectUnauthorized: false } : undefined,
-    max: 5,
-    idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 10_000,
+    max: 3,
+    idleTimeoutMillis: 10_000,
+    connectionTimeoutMillis: 8_000,
+    // Aucune requête utilisateur ne doit rester bloquée plus de 15 s :
+    // mieux vaut une erreur claire qu'une page figée.
+    statement_timeout: 15_000,
+    query_timeout: 15_000,
   });
 }
 
