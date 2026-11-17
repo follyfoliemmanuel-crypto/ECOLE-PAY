@@ -13,6 +13,11 @@ import { estUuid } from "@/lib/actions/helpers";
 import { slugValide } from "@/lib/validation";
 import type { Trimestre } from "@/lib/types";
 
+// Génération PDF : runtime Node obligatoire (pdfkit) et marge de temps pour
+// les fonctions serverless de Vercel.
+export const runtime = "nodejs";
+export const maxDuration = 30;
+
 function trimestreValide(valeur: string | null): Trimestre | null {
   const nombre = Number.parseInt(valeur ?? "", 10);
   return nombre === 1 || nombre === 2 || nombre === 3 ? nombre : null;

@@ -110,27 +110,116 @@ Ne lancez jamais `db:seed` sur la base de production.
 
 ---
 
-## Déploiement sur Vercel + Neon
+## Hébergement sur Vercel + Neon
 
-1. **Créer la base** sur [Neon](https://neon.tech) et copier la chaîne de
-   connexion « Pooled connection ».
-2. **Importer le dépôt** dans Vercel.
-3. **Renseigner les variables** dans Vercel → Settings → Environment Variables :
-   - `DATABASE_URL` (Neon, avec `?sslmode=require`)
-   - `AUTH_SECRET`
-   - `NEXT_PUBLIC_SITE_URL` (ex. `https://app.schoolpay.tg`)
-   - `RESEND_API_KEY` et `EMAIL_FROM` si vous activez les emails
-4. **Appliquer le schéma** une fois depuis votre machine, en pointant
-   `DATABASE_URL` vers Neon :
+Tout le site tourne sur **Vercel** (Next.js 15, App Router) et la base sur
+**Neon**. Aucune donnée n'est écrite sur le disque des fonctions : les logos
+d'école sont stockés en base (data URL) et les bulletins PDF sont générés à la
+demande. Rien n'a besoin d'un serveur permanent.
+
+### 1. Base de données Neon
+
+1. Créer un projet Neon dans la région la plus proche (`eu-west` / Francfort ou
+   Paris).
+2. Copier la **Pooled connection** (`...-pooler...neon.tech`) et conserver
+   `?sslmode=require`.
+3. Appliquer le schéma une fois depuis votre machine :
 
    ```bash
-   npm run db:push
+   DATABASE_URL="postgresql://...-pooler...neon.tech/neondb?sslmode=require" npm run db:push
    ```
 
-5. **Déployer.** Vercel exécute `next build`.
+   Sous PowerShell :
+
+   ```powershell
+   $env:DATABASE_URL="postgresql://...-pooler...neon.tech/neondb?sslmode=require"; npm run db:push
+   ```
+
+4. En production, exécutez aussi `db/roles.sql` (rôle applicatif sans droits
+   d'administration) et utilisez son URL dans Vercel.
 
 > Les fonctions serverless réutilisent un petit pool (`max: 5`). Avec Neon,
-> utilisez impérativement la connexion *pooled*.
+> utilisez impérativement la connexion *pooled* : la connexion directe épuise
+> rapidement les slots.
+
+### 2. Projet Vercel
+
+1. **Importer le dépôt** GitHub dans Vercel.
+2. Laisser le framework **Next.js** ; build `npm run build`. Le fichier
+   `package.json` impose Node 20 ou plus (`engines`).
+3. Dans **Settings → Functions**, choisir une région proche de Lomé et de Neon
+   (Paris ou Francfort).
+4. Renseigner les variables dans **Settings → Environment Variables**
+   (Production et Preview) :
+
+   | Variable | Obligatoire | Valeur |
+   | --- | --- | --- |
+   | `DATABASE_URL` | oui | connexion **pooled** Neon, `?sslmode=require` |
+   | `AUTH_SECRET` | oui | 32 caractères aléatoires minimum |
+   | `SUPER_ADMIN_EMAIL` | oui | email du super admin |
+   | `SUPER_ADMIN_PASSWORD` | oui | 12 caractères minimum, unique |
+   | `NEXT_PUBLIC_SITE_URL` | oui | `https://schoolpay.tg` |
+   | `RESEND_API_KEY` | non | active les emails de réinitialisation |
+   | `EMAIL_FROM` | non | `SCHOOL PAY <noreply@schoolpay.tg>` |
+   | `WHATSAPP_TOKEN` + `WHATSAPP_PHONE_ID` | non | envoi direct des bulletins |
+   | `NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL` | non | lien public du `.exe` |
+   | `NEXT_PUBLIC_CONTACT_*` | non | coordonnées commerciales affichées |
+
+   Générer la clé de session :
+
+   ```bash
+   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+   ```
+
+5. **Déployer**, puis vérifier :
+
+   - `https://votre-domaine/api/sante` renvoie `{"statut":"ok","base":"ok"}` ;
+   - `/connexion` s'affiche et une connexion aboutit ;
+   - les en-têtes `Strict-Transport-Security` et `Content-Security-Policy` sont
+     présents en HTTPS ;
+   - les cookies portent le préfixe `__Host-` en production.
+
+6. Toute variable `NEXT_PUBLIC_*` est figée au build : après modification,
+   **redéployez** (Deployments → Redeploy).
+
+### 3. Vérifier la configuration avant de déployer
+
+```bash
+npm run env:check          # en local, lit .env.local
+```
+
+Sur Vercel, exportez les variables ou lancez la commande depuis un terminal avec
+`DATABASE_URL`, `AUTH_SECRET`, `SUPER_ADMIN_*` et `NEXT_PUBLIC_SITE_URL`
+positionnés : le script signale les valeurs d'exemple, les URLs locales, l'absence
+de `sslmode=require` ou une connexion Neon non poolée.
+
+### 4. Nom de domaine
+
+- Ajouter `schoolpay.tg` et `app.schoolpay.tg` au projet Vercel (CNAME pour le
+  sous-domaine), plus `maj.schoolpay.tg` pour les fichiers de mise à jour.
+- Conserver `ecolepay.tg` avec une redirection **301** vers `schoolpay.tg` : les
+  QR codes et messages WhatsApp déjà envoyés continuent de fonctionner.
+- La procédure complète (DNS, Resend, `.exe`) est décrite dans
+  [Bascule vers schoolpay.tg](#bascule-vers-schoolpaytg).
+
+### 5. Après la première mise en production
+
+1. Ouvrir `/super-admin/securite`, activer la **2FA** et noter les 8 codes de
+   secours (script de secours : `npm run 2fa:desactiver`).
+2. Vérifier que le domaine d'envoi est validé dans Resend.
+3. Faire une sauvegarde Neon (branche ou export) et la planifier.
+4. Se connecter avec un compte école réel pour valider reçus, portail parent et
+   bulletin PDF.
+
+### 6. Ce qu'il faut savoir sur les fonctions serverless
+
+- Un pool PostgreSQL par instance : garder la connexion *pooled* Neon.
+- Le bulletin PDF déclare `maxDuration = 30` s ; les plans Vercel limitent la
+  durée maximale (10 s en Hobby par défaut, configurable jusqu'à 60 s).
+- Aucun cron n'est configuré : les relances WhatsApp restent déclenchées par le
+  directeur depuis l'application.
+- Togo = UTC : les dates et l'année scolaire ne subissent aucun décalage sur
+  Vercel.
 
 ### Activer réellement les emails (Resend)
 
@@ -311,6 +400,8 @@ public/
   icons/                     Icônes PWA 192 / 512 / maskable
 scripts/
   push-schema.mjs            Applique le schéma
+  verifier-env.mjs           Contrôle des variables avant déploiement
+  desactiver-2fa.mjs         Secours si la 2FA est bloquée
   seed-demo.ts               École de démonstration
 src/
   app/
@@ -356,6 +447,8 @@ src/
 | `npm run typecheck` | Vérification TypeScript |
 | `npm run db:push` | Applique `db/schema.sql` |
 | `npm run db:seed` | Recrée l'école de démonstration |
+| `npm run env:check` | Vérifie les variables d'environnement avant déploiement |
+| `npm run 2fa:desactiver` | Désactive la 2FA super admin (secours) |
 | `npm run desktop:dev` | Ouvre la coque Electron sur le serveur local |
 | `npm run desktop:pack` | Construit un dossier Windows non installable (test) |
 | `npm run desktop:build` | Génère l'installateur `.exe` dans `release/` |
