@@ -6,14 +6,14 @@
  * pointent toujours vers le domaine public configuré.
  */
 
-const SITE_PAR_DEFAUT = "https://ecolepay.tg";
+const SITE_PAR_DEFAUT = "https://schoolpay.tg";
 
 function site(): string {
   const valeur = process.env.NEXT_PUBLIC_SITE_URL?.trim();
   return (valeur && valeur !== "" ? valeur : SITE_PAR_DEFAUT).replace(/\/+$/, "");
 }
 
-/** https://ecolepay.tg/parent/college-la-grace */
+/** https://schoolpay.tg/parent/college-la-grace */
 export function lienPublicEcole(slug: string): string {
   return `${site()}/parent/${encodeURIComponent(slug)}`;
 }
@@ -32,7 +32,7 @@ export function lienBulletinPdf(
   return `${lienPublicEleve(slug, eleveId)}/bulletin?trimestre=${trimestre}`;
 }
 
-/** ecolepay.tg/parent/college-la-grace (sans protocole, pour les messages). */
+/** schoolpay.tg/parent/college-la-grace (sans protocole, pour les messages). */
 export function adressePubliqueEcole(slug: string): string {
   return lienPublicEcole(slug).replace(/^https?:\/\//, "");
 }

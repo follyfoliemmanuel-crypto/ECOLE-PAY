@@ -1,5 +1,5 @@
 /**
- * Coordonnées commerciales d'SCHOOL PAY.
+ * Coordonnées commerciales de SCHOOL PAY.
  *
  * ⚠️ Ce module est réservé aux composants serveur : il lit `process.env`
  * dynamiquement. Dans un composant client, utilisez la variable littérale
@@ -30,7 +30,7 @@ export const COMMERCIAL = {
   /** Nom du bénéficiaire des transferts Mobile Money. */
   beneficiaire: env("NEXT_PUBLIC_MONEY_BENEFICIAIRE", "SCHOOL PAY SARL"),
   /** Adresse publique du site. */
-  siteUrl: env("NEXT_PUBLIC_SITE_URL", "https://ecolepay.tg"),
+  siteUrl: env("NEXT_PUBLIC_SITE_URL", "https://schoolpay.tg"),
   /** Lien de téléchargement de l'application Windows (.exe). */
   telechargementBureau: env("NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL", ""),
 } as const;

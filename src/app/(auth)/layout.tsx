@@ -25,7 +25,7 @@ export default function LayoutAuth({
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/logo-ecole-pay.png"
+              src="/logo-school-pay.png"
               alt="SCHOOL PAY — Apprendre, réussir, payer facilement"
               width={230}
               height={153}

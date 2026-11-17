@@ -4,7 +4,7 @@
   "private": true,
   "author": {
     "name": "SCHOOL PAY",
-    "email": "contact@ecolepay.tg"
+    "email": "contact@schoolpay.tg"
   },
   "description": "Gestion des frais de scolarité pour les écoles privées du Togo",
   "main": "desktop/main.js",

@@ -118,7 +118,7 @@ Ne lancez jamais `db:seed` sur la base de production.
 3. **Renseigner les variables** dans Vercel → Settings → Environment Variables :
    - `DATABASE_URL` (Neon, avec `?sslmode=require`)
    - `AUTH_SECRET`
-   - `NEXT_PUBLIC_SITE_URL` (ex. `https://app.ecolepay.tg`)
+   - `NEXT_PUBLIC_SITE_URL` (ex. `https://app.schoolpay.tg`)
    - `RESEND_API_KEY` et `EMAIL_FROM` si vous activez les emails
 4. **Appliquer le schéma** une fois depuis votre machine, en pointant
    `DATABASE_URL` vers Neon :
@@ -138,10 +138,10 @@ Une clé API valide ne suffit pas : Resend refuse l'envoi si le **domaine de
 `EMAIL_FROM` n'est pas vérifié**, avec une erreur `403 The domain is not
 verified`. Marche à suivre :
 
-1. Resend → **Domains** → *Add domain* → `ecolepay.tg`.
+1. Resend → **Domains** → *Add domain* → `schoolpay.tg`.
 2. Recopier chez le registrar les enregistrements **SPF**, **DKIM** et
    **DMARC** fournis, puis attendre le statut *Verified*.
-3. Garder `EMAIL_FROM="SCHOOL PAY <noreply@ecolepay.tg>"` : l'envoi fonctionne
+3. Garder `EMAIL_FROM="SCHOOL PAY <noreply@schoolpay.tg>"` : l'envoi fonctionne
    alors vers n'importe quel destinataire.
 
 Sans domaine vérifié, seul le **domaine sandbox** `onboarding@resend.dev`
@@ -154,6 +154,33 @@ EMAIL_FROM="SCHOOL PAY <onboarding@resend.dev>"
 L'inscription sur Resend doit donc être faite avec l'adresse qui recevra les
 tests. L'application vérifie cette configuration avant l'envoi et affiche un
 message clair au lieu de faire croire que l'email est parti.
+
+### Bascule vers schoolpay.tg
+
+Le code utilise déjà `schoolpay.tg` par défaut. Tant que le domaine n'est pas
+configuré, les liens du portail parent et les emails pointeront dans le vide :
+gardez `NEXT_PUBLIC_SITE_URL` et `EMAIL_FROM` sur l'ancien domaine en production
+jusqu'à la fin de la bascule.
+
+1. **Domaine** : réserver `schoolpay.tg`, puis ajouter dans Vercel les domaines
+   `schoolpay.tg`, `app.schoolpay.tg` et `maj.schoolpay.tg` (CNAME vers Vercel
+   pour les deux sous-domaines).
+2. **Application** : mettre `NEXT_PUBLIC_SITE_URL=https://schoolpay.tg` dans
+   Vercel, puis redéployer. Les liens du portail, le QR code et les emails de
+   réinitialisation utilisent cette valeur.
+3. **Emails** : dans Resend, ajouter le domaine `schoolpay.tg` et recopier les
+   enregistrements SPF, DKIM et DMARC. Une fois le statut *Verified*, passer
+   `EMAIL_FROM="SCHOOL PAY <noreply@schoolpay.tg>"`.
+4. **Anciens liens** : garder `ecolepay.tg` actif et le rediriger en 301 vers
+   `schoolpay.tg`. Les QR codes et messages WhatsApp déjà envoyés aux parents
+   continueront de fonctionner.
+5. **Application Windows** : republier un `.exe` (le nom du fichier devient
+   `SCHOOL-PAY-<version>-setup.exe`) et mettre à jour
+   `NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL`.
+6. **Ce qui ne change pas** : le nom de la base PostgreSQL, les noms de cookies
+   (`__Host-ecolepay_session`), l'`appId` Electron et les emails de démonstration
+   déjà en base. Les garder évite de déconnecter tous les utilisateurs et de
+   casser les mises à jour automatiques.
 
 ---
 
@@ -279,8 +306,8 @@ desktop/
   preparer-build.cjs         Correctif NSIS (contourne « spawn UNKNOWN »)
   build/icon.png             Icône Windows (générée depuis le logo)
 public/
-  logo-ecole-pay.png         Logo complet officiel
-  marque-ecole-pay.png       Emblème seul (interface)
+  logo-school-pay.png         Logo complet officiel
+  marque-school-pay.png       Emblème seul (interface)
   icons/                     Icônes PWA 192 / 512 / maskable
 scripts/
   push-schema.mjs            Applique le schéma
@@ -352,11 +379,11 @@ coque Windows (fenêtre, menu, écran hors-ligne) peut nécessiter un nouvel
 
 ```bash
 npm run dev                 # terminal 1 : le site sur http://localhost:3000
-set ECOLEPAY_APP_URL=http://localhost:3000
+set SCHOOLPAY_APP_URL=http://localhost:3000
 npm run desktop:dev         # terminal 2 : la fenêtre Electron
 ```
 
-Sous PowerShell, utilisez `$env:ECOLEPAY_APP_URL="http://localhost:3000"` avant
+Sous PowerShell, utilisez `$env:SCHOOLPAY_APP_URL="http://localhost:3000"` avant
 `npm run desktop:dev`.
 
 ### Construire l'installateur
@@ -365,7 +392,7 @@ Sous PowerShell, utilisez `$env:ECOLEPAY_APP_URL="http://localhost:3000"` avant
 npm run desktop:build
 ```
 
-Le fichier `release/ECOLE-PAY-1.0.0-setup.exe` est généré avec :
+Le fichier `release/SCHOOL-PAY-1.0.0-setup.exe` est généré avec :
 
 - un installeur NSIS (choix du dossier d'installation, raccourcis menu et
   bureau, désinstallation propre) ;
@@ -389,9 +416,9 @@ embarqué dans le `.exe`.
    fichiers à la main).
 3. Envoyez sur le serveur de mise à jour **le même dossier** que celui indiqué
    dans `desktop/electron-builder.yml` (`publish.url`) :
-   - `ECOLE-PAY-1.0.1-setup.exe`
+   - `SCHOOL-PAY-1.0.1-setup.exe`
    - `latest.yml`
-   - `ECOLE-PAY-1.0.1-setup.exe.blockmap`
+   - `SCHOOL-PAY-1.0.1-setup.exe.blockmap`
 
 Les postes déjà installés téléchargent la mise à jour en arrière-plan. Un
 bandeau « mise à jour prête » apparaît dans l'application ; elle s'installe au
@@ -405,7 +432,7 @@ retélécharger l'installeur.
 > publish:
 >   provider: github
 >   owner: VOTRE_COMPTE
->   repo: ecole-pay
+>   repo: SCHOOL-PAY
 > ```
 >
 > puis publiez avec un jeton `GH_TOKEN`.
@@ -425,7 +452,7 @@ retélécharger l'installeur.
 - **Signature de code** : sans certificat, Windows SmartScreen affiche un
   avertissement au premier lancement. Un certificat de signature (OV/EV)
   supprime cet avertissement et protège les mises à jour.
-- **URL de mise à jour** : remplacez `https://maj.ecolepay.tg/desktop` dans
+- **URL de mise à jour** : remplacez `https://maj.schoolpay.tg/desktop` dans
   `desktop/electron-builder.yml` par votre hébergement réel.
 - **Lien de téléchargement** : renseignez
   `NEXT_PUBLIC_DESKTOP_DOWNLOAD_URL` pour afficher le bouton « Télécharger le
@@ -456,8 +483,8 @@ Avant une mise en production réelle :
   dans la base et n'a accès qu'à `/super-admin`.
 - **Modèles WhatsApp** : modifiables par chaque directeur depuis
   Paramètres. Les valeurs par défaut sont dans `db/schema.sql`.
-- **Logo** : le logo officiel est dans `public/logo-ecole-pay.png`, l'emblème
-  seul dans `public/marque-ecole-pay.png`. Pour le remplacer, régénérez aussi
+- **Logo** : le logo officiel est dans `public/logo-school-pay.png`, l'emblème
+  seul dans `public/marque-school-pay.png`. Pour le remplacer, régénérez aussi
   `desktop/build/icon.png`, `src/app/icon.png`, `src/app/apple-icon.png` et
   `public/icons/` (192, 512, maskable).
 - **Identité de chaque école** : chaque école téléverse son propre logo depuis

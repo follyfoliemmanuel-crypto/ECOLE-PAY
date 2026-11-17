@@ -25,7 +25,7 @@ export function Logo({
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/marque-ecole-pay.png"
+          src="/marque-school-pay.png"
           alt=""
           width={34}
           height={34}

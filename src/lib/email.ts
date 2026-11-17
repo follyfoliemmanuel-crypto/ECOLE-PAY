@@ -33,7 +33,7 @@ export async function envoyerEmail({
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        from: process.env.EMAIL_FROM ?? "SCHOOL PAY <noreply@ecolepay.tg>",
+        from: process.env.EMAIL_FROM ?? "SCHOOL PAY <noreply@schoolpay.tg>",
         to: [to],
         subject,
         html,
@@ -85,9 +85,9 @@ export type EtatConfigurationEmail =
 let cache: { quand: number; etat: EtatConfigurationEmail } | null = null;
 const DUREE_CACHE = 5 * 60 * 1000;
 
-/** Domaine d'envoi déduit de `EMAIL_FROM` (ex. « noreply@ecolepay.tg »). */
+/** Domaine d'envoi déduit de `EMAIL_FROM` (ex. « noreply@schoolpay.tg »). */
 function domaineEnvoi(): string {
-  const from = process.env.EMAIL_FROM ?? "SCHOOL PAY <noreply@ecolepay.tg>";
+  const from = process.env.EMAIL_FROM ?? "SCHOOL PAY <noreply@schoolpay.tg>";
   const adresse = from.match(/<([^>]+)>/)?.[1] ?? from;
   return adresse.split("@")[1]?.trim().toLowerCase() ?? "";
 }

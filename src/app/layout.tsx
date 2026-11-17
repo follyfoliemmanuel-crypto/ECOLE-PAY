@@ -46,7 +46,7 @@ export const metadata: Metadata = {
     title: "SCHOOL PAY — Gestion des frais scolaires",
     description:
       "L'application des écoles privées au Togo pour suivre les frais de scolarité, envoyer les reçus WhatsApp et relancer les impayés.",
-    images: ["/logo-ecole-pay.png"],
+    images: ["/logo-school-pay.png"],
   },
 };
 
