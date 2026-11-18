@@ -3,13 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { sql, transaction, uneLigne } from "../db";
 import { getSession } from "../auth";
-import { anneeScolaire } from "../mois";
+import { anneeActive } from "../data/annees";
 import { normaliserTelephone } from "../format";
 import { compterElevesActifs, limitesOffre } from "../data/ecole";
 import { offreEffective } from "../offres";
 import { estUuid, messageErreurBdd, texte } from "./helpers";
-import { journaliser } from "../journal";
-import type { ResultatAction } from "../types";
+import type { ResultatAction, StatutEleve } from "../types";
 
 function validerChamps(donnees: FormData): {
   error?: string;
@@ -118,7 +117,7 @@ export async function creerEleve(
     return { error: "Classe introuvable dans votre école." };
   }
 
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const limite = limitesOffre(offreEffective(session.ecole));
   const effectif = await compterElevesActifs(session.ecoleId, annee);
   if (limite.eleves !== null && effectif >= limite.eleves) {
@@ -183,11 +182,17 @@ export async function modifierEleve(
     return { error: "Classe introuvable dans votre école." };
   }
 
-  const eleve = await uneLigne<{ id: string }>(
-    `select id from eleves where id = $1 and ecole_id = $2`,
+  const eleve = await uneLigne<{ id: string; statut: StatutEleve }>(
+    `select id, statut from eleves where id = $1 and ecole_id = $2`,
     [id, session.ecoleId],
   );
   if (!eleve) return { error: "Élève introuvable." };
+  if (eleve.statut !== "actif") {
+    return {
+      error:
+        "Cet élève est sorti de l'école (transfert, diplôme ou inactivité). Sa fiche est conservée en lecture seule dans l'archive.",
+    };
+  }
 
   try {
     const changementPhoto = photo.url !== undefined;
@@ -222,39 +227,9 @@ export async function modifierEleve(
 }
 
 // ---------------------------------------------------------------------------
-//  Supprimer un élève (directeur uniquement)
+//  Un élève n'est jamais supprimé : il sort par transfert ou diplôme.
+//  Voir `transfererEleve` dans src/lib/actions/annees.ts.
 // ---------------------------------------------------------------------------
-export async function supprimerEleve(donnees: FormData): Promise<ResultatAction> {
-  const session = await getSession();
-  if (!session) return { error: "Votre session a expiré." };
-  if (session.role !== "directeur") {
-    return { error: "Seul le directeur peut supprimer un élève." };
-  }
-
-  const id = texte(donnees, "id");
-  if (!estUuid(id)) return { error: "Élève introuvable." };
-
-  const resultat = await sql<{ id: string; nom: string; prenom: string }>(
-    `delete from eleves where id = $1 and ecole_id = $2
-     returning id, nom, prenom`,
-    [id, session.ecoleId],
-  );
-  if (resultat.length === 0) return { error: "Élève introuvable." };
-
-  const eleve = resultat[0];
-  await journaliser({
-    action: "ELEVE_SUPPRIME",
-    libelle: `Élève supprimé : ${eleve.prenom} ${eleve.nom}.`,
-    auteur: session.email ?? session.identifiant ?? session.userId,
-    cible: `${eleve.prenom} ${eleve.nom}`,
-    cibleId: id,
-    details: { ecole: session.ecole.nom },
-  });
-
-  revalidatePath("/app/eleves");
-  revalidatePath("/app");
-  return { success: "Élève supprimé." };
-}
 
 // ---------------------------------------------------------------------------
 //  Importer des élèves en lot (CSV / Excel)
@@ -291,7 +266,7 @@ export async function importerEleves(
     };
   }
 
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const limite = limitesOffre(offreEffective(session.ecole));
   const effectif = await compterElevesActifs(session.ecoleId, annee);
   if (limite.eleves !== null && effectif + eleves.length > limite.eleves) {

@@ -94,9 +94,19 @@ create table if not exists classes (
   frais_inscription  integer     not null default 0 check (frais_inscription >= 0),
   frais_reinscription integer    not null default 0 check (frais_reinscription >= 0),
   ordre              integer     not null default 0,
+  -- Fin de cycle : une classe normale promeut automatiquement ses élèves,
+  -- une classe d'examen attend la décision du directeur (CEPD, BEPC, BAC).
+  type_fin           text        not null default 'NORMALE'
+                     check (type_fin in ('NORMALE', 'EXAMEN')),
+  examen             text        check (examen in ('CEPD', 'BEPC', 'BAC')),
+  -- Destination après réussite. NULL = dernière classe (diplôme) ou à définir.
+  classe_suivante_id uuid,
   date_creation      timestamptz not null default now(),
   unique (id, ecole_id),
-  unique (ecole_id, nom)
+  unique (ecole_id, nom),
+  constraint classe_suivante_ecole_fk
+    foreign key (classe_suivante_id, ecole_id) references classes (id, ecole_id)
+    on delete set null (classe_suivante_id)
 );
 
 create index if not exists classes_ecole_idx on classes (ecole_id);
@@ -142,7 +152,11 @@ create table if not exists eleves (
   annee_scolaire   text        not null,
   type_inscription text        not null default 'NOUVEAU'
                    check (type_inscription in ('NOUVEAU', 'ANCIEN')),
-  statut           text        not null default 'actif' check (statut in ('actif', 'inactif')),
+  statut           text        not null default 'actif'
+                   check (statut in ('actif', 'inactif', 'transfere', 'diplome')),
+  -- Sortie de l'élève : transfert vers une autre école ou diplôme.
+  date_sortie      date,
+  ecole_destination text,
   date_inscription date        not null default current_date,
   date_creation    timestamptz not null default now(),
   unique (id, ecole_id),
@@ -1749,7 +1763,7 @@ create table if not exists taches (
   id            uuid        primary key default gen_random_uuid(),
   ecole_id      uuid        references ecoles (id) on delete cascade,
   type          text        not null
-                check (type in ('BULLETIN_WHATSAPP')),
+                check (type in ('BULLETIN_WHATSAPP', 'RAPPORT')),
   statut        text        not null default 'EN_ATTENTE'
                 check (statut in ('EN_ATTENTE', 'EN_COURS', 'TERMINE', 'ECHEC')),
   charge        jsonb       not null default '{}'::jsonb,
@@ -1764,5 +1778,295 @@ create index if not exists taches_file_idx
   on taches (statut, execute_apres);
 create index if not exists taches_ecole_idx
   on taches (ecole_id, date_creation desc);
+
+-- ===========================================================================
+--  GESTION DES ANNÉES SCOLAIRES, INSCRIPTIONS, ARCHIVES ET RAPPORTS
+--
+--  Principe : un élève n'existe qu'une fois dans `eleves`. Son parcours est
+--  décrit année par année dans `inscriptions`, ce qui permet de promouvoir,
+--  faire redoubler, transférer ou diplômer sans jamais supprimer l'élève.
+-- ===========================================================================
+
+-- Classes : fin de cycle et classe suivante ---------------------------------
+alter table classes add column if not exists type_fin text;
+alter table classes add column if not exists examen text;
+alter table classes add column if not exists classe_suivante_id uuid;
+
+update classes set type_fin = 'NORMALE' where type_fin is null;
+alter table classes alter column type_fin set default 'NORMALE';
+alter table classes alter column type_fin set not null;
+
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'classes_type_fin_check') then
+    alter table classes add constraint classes_type_fin_check
+      check (type_fin in ('NORMALE', 'EXAMEN'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'classes_examen_check') then
+    alter table classes add constraint classes_examen_check
+      check (examen is null or examen in ('CEPD', 'BEPC', 'BAC'));
+  end if;
+  if not exists (select 1 from pg_constraint where conname = 'classe_suivante_ecole_fk') then
+    alter table classes add constraint classe_suivante_ecole_fk
+      foreign key (classe_suivante_id, ecole_id) references classes (id, ecole_id)
+      on delete set null (classe_suivante_id);
+  end if;
+end $$;
+
+create index if not exists classes_suivante_idx
+  on classes (classe_suivante_id)
+  where classe_suivante_id is not null;
+
+-- Élèves : sortie définitive (transfert) ou diplôme --------------------------
+alter table eleves add column if not exists date_sortie date;
+alter table eleves add column if not exists ecole_destination text;
+
+alter table eleves drop constraint if exists eleves_statut_check;
+alter table eleves add constraint eleves_statut_check
+  check (statut in ('actif', 'inactif', 'transfere', 'diplome'));
+
+create index if not exists eleves_statut_idx
+  on eleves (ecole_id, statut, annee_scolaire);
+
+-- Années scolaires officielles de l'école ------------------------------------
+create table if not exists annees_scolaires (
+  id             uuid        primary key default gen_random_uuid(),
+  ecole_id       uuid        not null references ecoles (id) on delete cascade,
+  libelle        text        not null,
+  -- 1er septembre -> 31 août.
+  date_debut     date        not null,
+  date_fin       date        not null,
+  statut         text        not null default 'OUVERTE'
+                 check (statut in ('OUVERTE', 'CLOTUREE')),
+  cloturee_le    timestamptz,
+  cloturee_par   uuid,
+  date_creation  timestamptz not null default now(),
+  unique (id, ecole_id),
+  unique (ecole_id, libelle),
+  constraint annee_cloture_user_fk
+    foreign key (cloturee_par, ecole_id) references users (id, ecole_id)
+    on delete set null (cloturee_par)
+);
+
+create index if not exists annees_scolaires_ecole_idx
+  on annees_scolaires (ecole_id, libelle desc);
+
+-- Reprise des années déjà présentes dans les données : la plus récente est
+-- ouverte, les précédentes sont archivées.
+with annees as (
+  select ecole_id, annee_scolaire from eleves
+  union
+  select ecole_id, annee_scolaire from frais
+  union
+  select ecole_id, annee_scolaire from notes
+)
+insert into annees_scolaires (ecole_id, libelle, date_debut, date_fin, statut)
+select a.ecole_id,
+       a.annee_scolaire,
+       (left(a.annee_scolaire, 4) || '-09-01')::date,
+       ((left(a.annee_scolaire, 4)::int + 1) || '-08-31')::date,
+       case
+         when a.annee_scolaire = max(a.annee_scolaire)
+              over (partition by a.ecole_id) then 'OUVERTE'
+         else 'CLOTUREE'
+       end
+  from annees a
+ where a.annee_scolaire ~ '^\d{4}-\d{4}$'
+on conflict (ecole_id, libelle) do nothing;
+
+-- Inscriptions annuelles : le parcours complet de chaque élève --------------
+create table if not exists inscriptions (
+  id                uuid        primary key default gen_random_uuid(),
+  ecole_id          uuid        not null references ecoles (id) on delete cascade,
+  eleve_id          uuid        not null,
+  annee_scolaire    text        not null,
+  classe_id         uuid        not null,
+  type_inscription  text        not null default 'NOUVEAU'
+                    check (type_inscription in ('NOUVEAU', 'ANCIEN')),
+  statut            text        not null default 'INSCRIT'
+                    check (statut in ('INSCRIT', 'PROMU', 'REDOUBLANT',
+                                      'TRANSFERE', 'DIPLOME', 'INACTIF')),
+  -- Décision prise à la clôture : null tant que l'année est en cours.
+  decision          text        check (decision in (
+                      'PASSE', 'REDOUBLE', 'DIPLOME', 'TRANSFERE',
+                      'INACTIF', 'ADMIS', 'ECHOUE')),
+  moyenne_annuelle  numeric(4, 2)
+                    check (moyenne_annuelle is null
+                           or (moyenne_annuelle >= 0 and moyenne_annuelle <= 20)),
+  date_inscription  date        not null default current_date,
+  date_sortie       date,
+  ecole_destination text,
+  date_creation     timestamptz not null default now(),
+  updated_at        timestamptz not null default now(),
+  unique (id, ecole_id),
+  unique (eleve_id, annee_scolaire),
+  constraint inscription_eleve_ecole_fk
+    foreign key (eleve_id, ecole_id) references eleves (id, ecole_id)
+    on delete cascade,
+  constraint inscription_classe_ecole_fk
+    foreign key (classe_id, ecole_id) references classes (id, ecole_id)
+    on delete restrict
+);
+
+create index if not exists inscriptions_ecole_annee_idx
+  on inscriptions (ecole_id, annee_scolaire, classe_id);
+create index if not exists inscriptions_eleve_idx
+  on inscriptions (eleve_id, annee_scolaire desc);
+
+drop trigger if exists inscriptions_updated_at on inscriptions;
+create trigger inscriptions_updated_at
+  before update on inscriptions
+  for each row execute function maj_updated_at();
+
+-- Backfill : chaque élève actuellement présent a au moins une inscription.
+insert into inscriptions
+  (ecole_id, eleve_id, annee_scolaire, classe_id, type_inscription,
+   statut, date_inscription, date_sortie, ecole_destination)
+select e.ecole_id, e.id, e.annee_scolaire, e.classe_id, e.type_inscription,
+       case e.statut
+         when 'transfere' then 'TRANSFERE'
+         when 'diplome' then 'DIPLOME'
+         when 'inactif' then 'INACTIF'
+         else 'INSCRIT'
+       end,
+       e.date_inscription, e.date_sortie, e.ecole_destination
+  from eleves e
+on conflict (eleve_id, annee_scolaire) do nothing;
+
+-- Synchronisation automatique de la fiche élève vers son inscription de
+-- l'année. La promotion met à jour `annee_scolaire` : une nouvelle inscription
+-- est créée, l'ancienne reste intacte pour l'archive.
+create or replace function synchroniser_inscription() returns trigger
+language plpgsql as $$
+declare
+  v_statut text;
+begin
+  v_statut := case new.statut
+    when 'transfere' then 'TRANSFERE'
+    when 'diplome'   then 'DIPLOME'
+    when 'inactif'   then 'INACTIF'
+    else 'INSCRIT'
+  end;
+
+  if tg_op = 'INSERT' then
+    insert into inscriptions
+      (ecole_id, eleve_id, annee_scolaire, classe_id, type_inscription,
+       statut, date_inscription, date_sortie, ecole_destination)
+    values
+      (new.ecole_id, new.id, new.annee_scolaire, new.classe_id,
+       new.type_inscription, v_statut, new.date_inscription,
+       new.date_sortie, new.ecole_destination)
+    on conflict (eleve_id, annee_scolaire) do nothing;
+    return new;
+  end if;
+
+  if new.annee_scolaire = old.annee_scolaire then
+    update inscriptions
+       set classe_id = new.classe_id,
+           type_inscription = new.type_inscription,
+           statut = case
+             when inscriptions.statut in ('PROMU', 'REDOUBLANT',
+                                          'TRANSFERE', 'DIPLOME')
+               then inscriptions.statut
+             else v_statut
+           end,
+           date_sortie = case
+             when new.statut in ('transfere', 'diplome')
+               then coalesce(new.date_sortie, inscriptions.date_sortie, current_date)
+             else inscriptions.date_sortie
+           end,
+           ecole_destination = coalesce(
+             new.ecole_destination, inscriptions.ecole_destination
+           )
+     where eleve_id = new.id
+       and annee_scolaire = new.annee_scolaire;
+  else
+    insert into inscriptions
+      (ecole_id, eleve_id, annee_scolaire, classe_id, type_inscription,
+       statut, date_inscription, date_sortie, ecole_destination)
+    values
+      (new.ecole_id, new.id, new.annee_scolaire, new.classe_id,
+       new.type_inscription, v_statut, current_date,
+       new.date_sortie, new.ecole_destination)
+    on conflict (eleve_id, annee_scolaire) do update
+      set classe_id = excluded.classe_id,
+          type_inscription = excluded.type_inscription;
+  end if;
+
+  return new;
+end $$;
+
+drop trigger if exists eleves_synchroniser_inscription on eleves;
+create trigger eleves_synchroniser_inscription
+  after insert or update of classe_id, annee_scolaire, type_inscription,
+                             statut, date_sortie, ecole_destination on eleves
+  for each row execute function synchroniser_inscription();
+
+-- Absences : une ligne par absence constatée. Sert aux rapports et à l'archive.
+create table if not exists absences (
+  id             uuid        primary key default gen_random_uuid(),
+  ecole_id       uuid        not null references ecoles (id) on delete cascade,
+  eleve_id       uuid        not null,
+  annee_scolaire text        not null,
+  trimestre      smallint    check (trimestre between 1 and 3),
+  date_absence   date        not null default current_date,
+  motif          text,
+  justifiee      boolean     not null default false,
+  enregistre_par uuid,
+  date_creation  timestamptz not null default now(),
+  unique (id, ecole_id),
+  constraint absence_eleve_ecole_fk
+    foreign key (eleve_id, ecole_id) references eleves (id, ecole_id)
+    on delete cascade,
+  constraint absence_user_ecole_fk
+    foreign key (enregistre_par, ecole_id) references users (id, ecole_id)
+    on delete set null (enregistre_par)
+);
+
+create index if not exists absences_ecole_annee_idx
+  on absences (ecole_id, annee_scolaire, date_absence desc);
+create index if not exists absences_eleve_idx
+  on absences (eleve_id, date_absence desc);
+
+-- Rapports générés en file d'attente ---------------------------------------
+create table if not exists rapports (
+  id              uuid        primary key default gen_random_uuid(),
+  ecole_id        uuid        not null references ecoles (id) on delete cascade,
+  annee_scolaire  text        not null,
+  type            text        not null
+                  check (type in ('TRIMESTRIEL', 'ANNUEL')),
+  -- 1..3 pour un trimestriel, 0 pour l'annuel.
+  trimestre       smallint    not null default 0
+                  check (trimestre between 0 and 3),
+  statut          text        not null default 'EN_ATTENTE'
+                  check (statut in ('EN_ATTENTE', 'EN_COURS', 'PRET', 'ECHEC')),
+  contenu         jsonb,
+  erreur          text,
+  demande_par     uuid,
+  date_generation timestamptz,
+  date_creation   timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  unique (id, ecole_id),
+  unique (ecole_id, annee_scolaire, type, trimestre),
+  constraint rapport_trimestre_coherent
+    check ((type = 'ANNUEL' and trimestre = 0)
+           or (type = 'TRIMESTRIEL' and trimestre between 1 and 3)),
+  constraint rapport_user_ecole_fk
+    foreign key (demande_par, ecole_id) references users (id, ecole_id)
+    on delete set null (demande_par)
+);
+
+create index if not exists rapports_ecole_idx
+  on rapports (ecole_id, annee_scolaire desc, type, trimestre);
+
+drop trigger if exists rapports_updated_at on rapports;
+create trigger rapports_updated_at
+  before update on rapports
+  for each row execute function maj_updated_at();
+
+-- File d'attente : nouveau type de tâche.
+alter table taches drop constraint if exists taches_type_check;
+alter table taches add constraint taches_type_check
+  check (type in ('BULLETIN_WHATSAPP', 'RAPPORT'));
 
 commit;

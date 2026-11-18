@@ -10,7 +10,13 @@ import {
   suffixePeriode,
 } from "@/lib/periodes";
 import { formatFCFA } from "@/lib/format";
-import type { Classe, Frequence, ResultatAction } from "@/lib/types";
+import type {
+  Classe,
+  ExamenNational,
+  Frequence,
+  ResultatAction,
+  TypeFinClasse,
+} from "@/lib/types";
 import { Bouton } from "@/components/ui/button";
 import { Alerte } from "@/components/ui/empty-state";
 import { Dialogue } from "@/components/ui/dialogue";
@@ -266,7 +272,121 @@ function EditeurTranches({
   );
 }
 
-export function NouvelleClasse() {
+function ChampFinCycle({
+  idPrefix,
+  classes,
+  classeId,
+  typeFin,
+  setTypeFin,
+  examen,
+  setExamen,
+  suivante,
+  setSuivante,
+}: {
+  idPrefix: string;
+  classes: Classe[];
+  classeId?: string;
+  typeFin: TypeFinClasse;
+  setTypeFin: (valeur: TypeFinClasse) => void;
+  examen: ExamenNational | "";
+  setExamen: (valeur: ExamenNational | "") => void;
+  suivante: string;
+  setSuivante: (valeur: string) => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-sm border border-line bg-surface-2/50 p-3">
+      <p className="label mb-0">Fin de cycle</p>
+
+      <div className="grid grid-cols-2 gap-1.5">
+        {[
+          {
+            valeur: "NORMALE" as const,
+            libelle: "Classe normale",
+            detail: "Promotion selon la moyenne",
+          },
+          {
+            valeur: "EXAMEN" as const,
+            libelle: "Classe d'examen",
+            detail: "Décision du directeur",
+          },
+        ].map((option) => (
+          <label
+            key={option.valeur}
+            htmlFor={`${idPrefix}-fin-${option.valeur}`}
+            className={cx(
+              "flex cursor-pointer flex-col rounded-sm border px-2.5 py-2 transition-colors",
+              typeFin === option.valeur
+                ? "border-brand bg-brand-soft text-brand"
+                : "border-line-strong bg-surface text-ink-2 hover:bg-surface-2",
+            )}
+          >
+            <input
+              id={`${idPrefix}-fin-${option.valeur}`}
+              type="radio"
+              name="type_fin"
+              value={option.valeur}
+              checked={typeFin === option.valeur}
+              onChange={() => setTypeFin(option.valeur)}
+              className="sr-only"
+            />
+            <span className="text-[12px] font-semibold">{option.libelle}</span>
+            <span className="text-[9.5px] opacity-70">{option.detail}</span>
+          </label>
+        ))}
+      </div>
+
+      {typeFin === "EXAMEN" && (
+        <div>
+          <label className="label" htmlFor={`${idPrefix}-examen`}>
+            Examen national préparé
+          </label>
+          <select
+            id={`${idPrefix}-examen`}
+            name="examen"
+            className="input"
+            value={examen}
+            onChange={(evenement) =>
+              setExamen(evenement.target.value as ExamenNational | "")
+            }
+          >
+            <option value="">Choisir…</option>
+            <option value="CEPD">CEPD (CM2)</option>
+            <option value="BEPC">BEPC (3ème)</option>
+            <option value="BAC">BAC (Terminale)</option>
+          </select>
+        </div>
+      )}
+
+      <div>
+        <label className="label" htmlFor={`${idPrefix}-suivante`}>
+          Classe suivante après réussite
+        </label>
+        <select
+          id={`${idPrefix}-suivante`}
+          name="classe_suivante_id"
+          className="input"
+          value={suivante}
+          onChange={(evenement) => setSuivante(evenement.target.value)}
+        >
+          <option value="">Fin de cycle (diplôme)</option>
+          {classes
+            .filter((classe) => classe.id !== classeId)
+            .map((classe) => (
+              <option key={classe.id} value={classe.id}>
+                {classe.nom}
+              </option>
+            ))}
+        </select>
+        <p className="aide">
+          En fin de cycle, un élève admis est diplômé. Sinon, il rejoint la
+          classe choisie à la clôture.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+export function NouvelleClasse({ classes = [] }: { classes?: Classe[] }) {
   const [etat, action, enCours] = useActionState<ResultatAction | null, FormData>(
     creerClasse,
     null,
@@ -274,12 +394,18 @@ export function NouvelleClasse() {
   const formulaire = useRef<HTMLFormElement>(null);
   const [frequence, setFrequence] = useState<Frequence>("MENSUEL");
   const [tranches, setTranches] = useState<LigneTranche[]>(TRANCHES_DEFAUT);
+  const [typeFin, setTypeFin] = useState<TypeFinClasse>("NORMALE");
+  const [examen, setExamen] = useState<ExamenNational | "">("");
+  const [suivante, setSuivante] = useState("");
 
   useEffect(() => {
     if (etat?.success) {
       formulaire.current?.reset();
       setFrequence("MENSUEL");
       setTranches(TRANCHES_DEFAUT);
+      setTypeFin("NORMALE");
+      setExamen("");
+      setSuivante("");
     }
   }, [etat]);
 
@@ -386,6 +512,17 @@ export function NouvelleClasse() {
         </div>
       </div>
 
+      <ChampFinCycle
+        idPrefix="nouvelle-classe"
+        classes={classes}
+        typeFin={typeFin}
+        setTypeFin={setTypeFin}
+        examen={examen}
+        setExamen={setExamen}
+        suivante={suivante}
+        setSuivante={setSuivante}
+      />
+
       {etat?.error && <Alerte>{etat.error}</Alerte>}
       {etat?.success && <Alerte ton="succes">{etat.success}</Alerte>}
 
@@ -401,7 +538,13 @@ export function NouvelleClasse() {
   );
 }
 
-export function ModifierClasse({ classe }: { classe: Classe }) {
+export function ModifierClasse({
+  classe,
+  classes = [],
+}: {
+  classe: Classe;
+  classes?: Classe[];
+}) {
   const router = useRouter();
   const [ouvert, setOuvert] = useState(false);
   const [afficherSucces, setAfficherSucces] = useState(false);
@@ -411,6 +554,11 @@ export function ModifierClasse({ classe }: { classe: Classe }) {
   const [tranches, setTranches] = useState<LigneTranche[]>(
     lignesDepuisClasse(classe),
   );
+  const [typeFin, setTypeFin] = useState<TypeFinClasse>(classe.type_fin);
+  const [examen, setExamen] = useState<ExamenNational | "">(
+    classe.examen ?? "",
+  );
+  const [suivante, setSuivante] = useState(classe.classe_suivante_id ?? "");
   const [etat, action, enCours] = useActionState<ResultatAction | null, FormData>(
     modifierClasse,
     null,
@@ -431,6 +579,9 @@ export function ModifierClasse({ classe }: { classe: Classe }) {
   function reinitialiser() {
     setFrequence(classe.frequence_paiement);
     setTranches(lignesDepuisClasse(classe));
+    setTypeFin(classe.type_fin);
+    setExamen(classe.examen ?? "");
+    setSuivante(classe.classe_suivante_id ?? "");
   }
 
   return (
@@ -542,6 +693,18 @@ export function ModifierClasse({ classe }: { classe: Classe }) {
               </div>
             </div>
           </div>
+
+          <ChampFinCycle
+            idPrefix={`classe-${classe.id}`}
+            classes={classes}
+            classeId={classe.id}
+            typeFin={typeFin}
+            setTypeFin={setTypeFin}
+            examen={examen}
+            setExamen={setExamen}
+            suivante={suivante}
+            setSuivante={setSuivante}
+          />
 
           {etat?.error && <Alerte>{etat.error}</Alerte>}
           {afficherSucces && etat?.success && <Alerte ton="succes">{etat.success}</Alerte>}

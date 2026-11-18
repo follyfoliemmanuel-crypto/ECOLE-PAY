@@ -8,7 +8,12 @@ import { estFrequence, LIBELLES_FREQUENCE } from "../periodes";
 import { compterClasses, limitesOffre } from "../data/ecole";
 import { offreEffective } from "../offres";
 import { estUuid, entier, messageErreurBdd, texte } from "./helpers";
-import type { Frequence, ResultatAction } from "../types";
+import type {
+  ExamenNational,
+  Frequence,
+  ResultatAction,
+  TypeFinClasse,
+} from "../types";
 
 function estDirecteur(role: string): boolean {
   return role === "directeur";
@@ -35,7 +40,12 @@ type ValeursClasse = {
   inscription: number;
   reinscription: number;
   tranches: TrancheSaisie[];
+  typeFin: TypeFinClasse;
+  examen: ExamenNational | null;
+  classeSuivanteId: string | null;
 };
+
+const EXAMENS: ExamenNational[] = ["CEPD", "BEPC", "BAC"];
 
 const MAX_TRANCHES = 20;
 
@@ -104,10 +114,34 @@ function lireClasse(donnees: FormData): {
   const frequenceBrute = texte(donnees, "frequence_paiement") || "MENSUEL";
   const inscription = entierOptionnel(donnees, "frais_inscription");
   const reinscription = entierOptionnel(donnees, "frais_reinscription");
+  const typeFinBrut = texte(donnees, "type_fin") || "NORMALE";
+  const examenBrut = texte(donnees, "examen");
+  const suivanteBrute = texte(donnees, "classe_suivante_id");
 
   if (nom.length < 1) return { error: "Indiquez le nom de la classe." };
   if (!estFrequence(frequenceBrute)) {
     return { error: "Choisissez la fréquence de paiement." };
+  }
+  if (typeFinBrut !== "NORMALE" && typeFinBrut !== "EXAMEN") {
+    return { error: "Choisissez la fin de cycle de la classe." };
+  }
+
+  let examen: ExamenNational | null = null;
+  if (typeFinBrut === "EXAMEN") {
+    if (!EXAMENS.includes(examenBrut as ExamenNational)) {
+      return {
+        error: "Choisissez l'examen préparé : CEPD, BEPC ou BAC.",
+      };
+    }
+    examen = examenBrut as ExamenNational;
+  }
+
+  let classeSuivanteId: string | null = null;
+  if (suivanteBrute) {
+    if (!estUuid(suivanteBrute)) {
+      return { error: "La classe suivante est invalide." };
+    }
+    classeSuivanteId = suivanteBrute;
   }
 
   let montant = 0;
@@ -155,8 +189,50 @@ function lireClasse(donnees: FormData): {
       inscription,
       reinscription,
       tranches,
+      typeFin: typeFinBrut,
+      examen,
+      classeSuivanteId,
     },
   };
+}
+
+/** Une classe suivante doit exister dans la même école et ne pas être la classe elle-même. */
+async function verifierClasseSuivante(
+  ecoleId: string,
+  classeId: string | null,
+  suivanteId: string | null,
+): Promise<string | null> {
+  if (!suivanteId) return null;
+  if (classeId && suivanteId === classeId) {
+    return "Une classe ne peut pas être sa propre classe suivante.";
+  }
+  const ligne = await uneLigne<{ id: string }>(
+    `select id from classes where id = $1 and ecole_id = $2`,
+    [suivanteId, ecoleId],
+  );
+  if (!ligne) return "La classe suivante est introuvable dans votre école.";
+
+  if (classeId) {
+    // Empêche une boucle A → B → A qui rendrait la clôture infinie.
+    const boucle = await uneLigne<{ id: string }>(
+      `with recursive chaine as (
+         select id, classe_suivante_id, 1 as profondeur
+           from classes where id = $1 and ecole_id = $2
+         union all
+         select c.id, c.classe_suivante_id, ch.profondeur + 1
+           from classes c
+           join chaine ch on c.id = ch.classe_suivante_id
+          where ch.profondeur < 20
+       )
+       select id from chaine where id = $3 limit 1`,
+      [suivanteId, ecoleId, classeId],
+    );
+    if (boucle) {
+      return "Cette classe suivante créerait une boucle dans le parcours des élèves.";
+    }
+  }
+
+  return null;
 }
 
 /** Écrit la liste des tranches d'une classe (création ou mise à jour). */
@@ -206,6 +282,13 @@ export async function creerClasse(
   if (!lecture.valeurs) return { error: lecture.error };
   const v = lecture.valeurs;
 
+  const erreurSuivante = await verifierClasseSuivante(
+    session.ecoleId,
+    null,
+    v.classeSuivanteId,
+  );
+  if (erreurSuivante) return { error: erreurSuivante };
+
   const offre = offreEffective(session.ecole);
   const limite = limitesOffre(offre);
   const actuelles = await compterClasses(session.ecoleId);
@@ -220,8 +303,9 @@ export async function creerClasse(
       const creee = await client.query<{ id: string }>(
         `insert into classes
            (ecole_id, nom, montant_periode, frequence_paiement,
-            frais_inscription, frais_reinscription)
-         values ($1, $2, $3, $4, $5, $6)
+            frais_inscription, frais_reinscription,
+            type_fin, examen, classe_suivante_id)
+         values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
          returning id`,
         [
           session.ecoleId,
@@ -230,6 +314,9 @@ export async function creerClasse(
           v.frequence,
           v.inscription,
           v.reinscription,
+          v.typeFin,
+          v.examen,
+          v.classeSuivanteId,
         ],
       );
       const id = creee.rows[0].id;
@@ -265,6 +352,13 @@ export async function modifierClasse(
   if (!lecture.valeurs) return { error: lecture.error };
   const v = lecture.valeurs;
 
+  const erreurSuivante = await verifierClasseSuivante(
+    session.ecoleId,
+    id,
+    v.classeSuivanteId,
+  );
+  if (erreurSuivante) return { error: erreurSuivante };
+
   const classe = await uneLigne<{
     id: string;
     montant_periode: number;
@@ -285,14 +379,18 @@ export async function modifierClasse(
       await client.query(
         `update classes
             set nom = $1, montant_periode = $2, frequence_paiement = $3,
-                frais_inscription = $4, frais_reinscription = $5
-          where id = $6 and ecole_id = $7`,
+                frais_inscription = $4, frais_reinscription = $5,
+                type_fin = $6, examen = $7, classe_suivante_id = $8
+          where id = $9 and ecole_id = $10`,
         [
           v.nom,
           v.montant,
           v.frequence,
           v.inscription,
           v.reinscription,
+          v.typeFin,
+          v.examen,
+          v.classeSuivanteId,
           id,
           session.ecoleId,
         ],
@@ -336,14 +434,19 @@ export async function supprimerClasse(donnees: FormData): Promise<ResultatAction
   if (!estUuid(id)) return { error: "Classe introuvable." };
 
   const eleves = await uneLigne<{ total: number }>(
-    `select count(*)::int as total from eleves where classe_id = $1 and ecole_id = $2`,
+    `select (select count(*)::int from eleves
+              where classe_id = $1 and ecole_id = $2)
+          + (select count(*)::int from inscriptions i
+              join eleves e on e.id = i.eleve_id
+             where i.classe_id = $1 and i.ecole_id = $2
+               and e.classe_id <> $1) as total`,
     [id, session.ecoleId],
   );
 
   if ((eleves?.total ?? 0) > 0) {
     return {
       error:
-        "Cette classe contient encore des élèves. Déplacez-les ou supprimez-les avant de supprimer la classe.",
+        "Cette classe figure dans le parcours d'élèves (année en cours ou archive). Réaffectez les élèves avant de supprimer la classe.",
     };
   }
 

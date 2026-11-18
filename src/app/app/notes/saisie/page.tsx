@@ -4,7 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, BookOpen } from "lucide-react";
 import { exigerSession } from "@/lib/auth";
 import { peut } from "@/lib/offres";
-import { anneeScolaire, libelleAnnee } from "@/lib/mois";
+import { libelleAnnee } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
 import { listerClasses } from "@/lib/data/classes";
 import { grilleNotes } from "@/lib/data/notes";
 import { estUuid } from "@/lib/actions/helpers";
@@ -45,7 +46,7 @@ export default async function PageSaisieNotes({
     redirect(`/app/notes?trimestre=${trimestre}`);
   }
 
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const [classes, grille] = await Promise.all([
     listerClasses(session.ecoleId, annee),
     grilleNotes(session.ecoleId, annee, parametres.classe, trimestre),

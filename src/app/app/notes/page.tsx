@@ -3,7 +3,8 @@ import Link from "next/link";
 import { ArrowRight, BookOpen, ClipboardList, FileText, School } from "lucide-react";
 import { exigerSession, estDirecteur } from "@/lib/auth";
 import { peut } from "@/lib/offres";
-import { anneeScolaire, libelleAnnee } from "@/lib/mois";
+import { libelleAnnee } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
 import { formatDate } from "@/lib/format";
 import { listerClasses } from "@/lib/data/classes";
 import { listerMatieres, resumeNotes } from "@/lib/data/notes";
@@ -40,7 +41,7 @@ export default async function PageNotes({
 
   const parametres = await searchParams;
   const trimestre = lireTrimestre(parametres.trimestre);
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const directeur = estDirecteur(session);
 
   const [matieres, classes, resume, saisies, echeance] = await Promise.all([

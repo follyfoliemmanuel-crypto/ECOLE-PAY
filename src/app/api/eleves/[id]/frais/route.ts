@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { accesAutorise } from "@/lib/activation";
-import { anneeScolaire } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
 import { getElevePaiement } from "@/lib/data/eleves";
 import {
   ENTETES_PRIVES,
@@ -40,7 +40,7 @@ export async function GET(
   }
   const id = valide.data;
 
-  const eleve = await getElevePaiement(session.ecoleId, id, anneeScolaire());
+  const eleve = await getElevePaiement(session.ecoleId, id, await anneeActive(session.ecoleId));
   if (!eleve) {
     return NextResponse.json(
       { error: "Élève introuvable" },

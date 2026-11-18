@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight, FileSpreadsheet } from "lucide-react";
 import { exigerSession } from "@/lib/auth";
-import { anneeScolaire } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
 import { listerClasses } from "@/lib/data/classes";
 import { EntetePage } from "@/components/app/entete-page";
 import { ImportEleves } from "@/components/eleves/import-eleves";
@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Importer des élèves" };
 
 export default async function PageImporterEleves() {
   const session = await exigerSession();
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const classes = await listerClasses(session.ecoleId, annee);
 
   return (

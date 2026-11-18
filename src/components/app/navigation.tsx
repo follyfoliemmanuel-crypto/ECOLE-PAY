@@ -4,8 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   AlertTriangle,
+  Archive,
   BarChart3,
   Building2,
+  CalendarRange,
+  FileText,
   GraduationCap,
   LayoutDashboard,
   LockKeyhole,
@@ -34,7 +37,10 @@ const LIENS_BASE: Lien[] = [
   { href: "/app/eleves", libelle: "Élèves", icone: Users },
   { href: "/app/paiements", libelle: "Paiements", icone: Wallet },
   { href: "/app/impayes", libelle: "Impayés", icone: AlertTriangle },
+  { href: "/app/rapports", libelle: "Rapports", icone: FileText },
   { href: "/app/classes", libelle: "Classes", icone: School },
+  { href: "/app/annees", libelle: "Années", icone: CalendarRange },
+  { href: "/app/archive", libelle: "Archive", icone: Archive },
 ];
 
 /** Les modules PREMIUM restent visibles mais verrouillés hors PREMIUM. */

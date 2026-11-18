@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import { exigerSession } from "@/lib/auth";
 import { peut } from "@/lib/offres";
-import { anneeScolaire, libelleAnnee } from "@/lib/mois";
+import { libelleAnnee } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
 import {
   frequenceDepuisParametre,
   libelleEcheance,
@@ -50,7 +51,7 @@ export default async function PageImpayes({
   const parametres = await searchParams;
   const peutRelancer = peut(session.ecole, "relances");
   const peutExporter = peut(session.ecole, "exports");
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const frequence = frequenceDepuisParametre(parametres.frequence);
   const periode = periodeDepuisParametre(parametres.periode, frequence);
   const page = Math.max(1, Number.parseInt(parametres.page ?? "1", 10) || 1);

@@ -95,6 +95,7 @@ export async function getEleve(
             c.montant_periode, c.frequence_paiement, e.nom_parent,
             e.telephone_parent, e.annee_scolaire, e.type_inscription,
             e.statut, e.date_inscription::text as date_inscription,
+            e.date_sortie::text as date_sortie, e.ecole_destination,
             e.masque_portail, e.photo_url
        from eleves e
        join classes c on c.id = e.classe_id

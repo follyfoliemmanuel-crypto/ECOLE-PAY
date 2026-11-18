@@ -21,7 +21,8 @@ import {
   limitesOffre,
   listerUtilisateurs,
 } from "@/lib/data/ecole";
-import { anneeScolaire, libelleAnnee } from "@/lib/mois";
+import { libelleAnnee } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
 import { formatFCFA, formatDate } from "@/lib/format";
 import {
   LIBELLES_OFFRE,
@@ -85,7 +86,7 @@ const FORMULES: {
 
 export default async function PageParametres() {
   const session = await exigerSession();
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const directeur = estDirecteur(session);
 
   const [ecole, utilisateurs, nbEleves, nbClasses] = await Promise.all([

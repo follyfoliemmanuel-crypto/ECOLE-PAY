@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight, UserPlus } from "lucide-react";
 import { exigerSession } from "@/lib/auth";
-import { anneeScolaire } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
 import { listerClasses } from "@/lib/data/classes";
 import { EntetePage } from "@/components/app/entete-page";
 import { FormulaireEleve } from "@/components/eleves/formulaire-eleve";
@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Nouvel élève" };
 
 export default async function PageNouvelEleve() {
   const session = await exigerSession();
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const classes = await listerClasses(session.ecoleId, annee);
 
   return (

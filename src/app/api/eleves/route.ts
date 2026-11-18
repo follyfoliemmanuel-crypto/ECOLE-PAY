@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { accesAutorise } from "@/lib/activation";
-import { anneeScolaire } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
 import { rechercherEleves } from "@/lib/data/eleves";
 import { consommerLimite, infosRequete } from "@/lib/securite";
 import {
@@ -56,7 +56,7 @@ export async function GET(requete: Request) {
 
   const eleves = await rechercherEleves(
     session.ecoleId,
-    anneeScolaire(),
+    await anneeActive(session.ecoleId),
     recherche,
   );
   return NextResponse.json({ eleves }, { headers: ENTETES_PRIVES });

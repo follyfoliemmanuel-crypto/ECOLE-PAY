@@ -11,7 +11,8 @@ import {
 } from "lucide-react";
 import { exigerSession } from "@/lib/auth";
 import { offreEffective, peut } from "@/lib/offres";
-import { anneeScolaire, libelleAnnee } from "@/lib/mois";
+import { libelleAnnee } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
 import {
   frequenceDepuisParametre,
   LIBELLES_TYPE_FRAIS,
@@ -65,7 +66,7 @@ export default async function PageStatistiques({
   }
 
   const parametres = await searchParams;
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const frequence = frequenceDepuisParametre(parametres.frequence);
   const nbTranches = await nombreTranchesMax(session.ecoleId);
   const periode = periodeDepuisParametre(

@@ -1,4 +1,5 @@
 import { sql, uneLigne } from "./db";
+import { construireContenuRapport } from "./data/annees";
 import { donneesBulletin } from "./data/notes";
 import {
   echouerTache,
@@ -101,8 +102,14 @@ async function traiterBulletin(tache: Tache): Promise<void> {
   if (!charge) throw new Error("Charge de tâche invalide.");
 
   const eleve = await uneLigne<{ classe_id: string }>(
-    `select classe_id from eleves where id = $1 and ecole_id = $2`,
-    [charge.eleve_id, tache.ecole_id],
+    `select coalesce(i.classe_id, e.classe_id) as classe_id
+       from eleves e
+       left join inscriptions i
+         on i.eleve_id = e.id
+        and i.ecole_id = e.ecole_id
+        and i.annee_scolaire = $3
+      where e.id = $1 and e.ecole_id = $2`,
+    [charge.eleve_id, tache.ecole_id, charge.annee],
   );
   if (!eleve) throw new Error("Élève introuvable.");
 
@@ -146,6 +153,67 @@ async function traiterBulletin(tache: Tache): Promise<void> {
   }
 
   await journaliserBulletin(tache.ecole_id, charge, "ENVOYE", null);
+}
+
+/**
+ * Génère le contenu consolidé d'un rapport demandé (trimestriel ou annuel).
+ * Le PDF n'est pas stocké : le contenu JSON suffit et le fichier est reconstruit
+ * à chaque téléchargement. La tâche peut donc être rejouée sans doublon.
+ */
+async function traiterRapport(tache: Tache): Promise<void> {
+  if (!tache.ecole_id) throw new Error("École absente de la tâche.");
+  const rapportId = tache.charge.rapport_id;
+  if (typeof rapportId !== "string") throw new Error("Charge de tâche invalide.");
+
+  const rapport = await uneLigne<{
+    annee_scolaire: string;
+    type: "TRIMESTRIEL" | "ANNUEL";
+    trimestre: number;
+    statut: string;
+  }>(
+    `select annee_scolaire, type, trimestre, statut
+       from rapports
+      where id = $1 and ecole_id = $2`,
+    [rapportId, tache.ecole_id],
+  );
+  if (!rapport) throw new Error("Rapport introuvable.");
+  if (rapport.statut === "PRET") return;
+
+  await sql(
+    `update rapports
+        set statut = 'EN_COURS', erreur = null, updated_at = now()
+      where id = $1 and ecole_id = $2`,
+    [rapportId, tache.ecole_id],
+  );
+
+  try {
+    const contenu = await construireContenuRapport(
+      tache.ecole_id,
+      rapport.annee_scolaire,
+      rapport.type,
+      rapport.trimestre,
+    );
+    await sql(
+      `update rapports
+          set statut = 'PRET',
+              contenu = $3::jsonb,
+              erreur = null,
+              date_generation = now(),
+              updated_at = now()
+        where id = $1 and ecole_id = $2`,
+      [rapportId, tache.ecole_id, JSON.stringify(contenu)],
+    );
+  } catch (erreur) {
+    const message =
+      erreur instanceof Error ? erreur.message : "Génération impossible.";
+    await sql(
+      `update rapports
+          set statut = 'ECHEC', erreur = left($3, 500), updated_at = now()
+        where id = $1 and ecole_id = $2`,
+      [rapportId, tache.ecole_id, message],
+    );
+    throw erreur;
+  }
 }
 
 /**
@@ -216,6 +284,8 @@ export async function traiterTaches({
     try {
       if (tache.type === "BULLETIN_WHATSAPP") {
         await traiterBulletin(tache);
+      } else if (tache.type === "RAPPORT") {
+        await traiterRapport(tache);
       }
       await terminerTache(tache.id);
       reussies += 1;

@@ -25,20 +25,30 @@ export type EleveNotes = {
   sexe: "M" | "F" | null;
 };
 
+/**
+ * Élèves d'une classe pour une année donnée.
+ *
+ * La source est `inscriptions` : un élève promu en 2027-2028 garde son
+ * bulletin de 2026-2027 intact et reste rattaché à son ancienne classe pour
+ * cette année. `inclureSortis` permet à l'archive d'afficher aussi les élèves
+ * transférés ou diplômés.
+ */
 export async function listerElevesClasse(
   ecoleId: string,
   annee: string,
   classeId: string,
+  inclureSortis = false,
 ): Promise<EleveNotes[]> {
   return sql<EleveNotes>(
-    `select id, nom, prenom, sexe
-       from eleves
-      where ecole_id = $1
-        and annee_scolaire = $2
-        and classe_id = $3
-        and statut = 'actif'
-      order by nom, prenom`,
-    [ecoleId, annee, classeId],
+    `select e.id, e.nom, e.prenom, e.sexe
+       from inscriptions i
+       join eleves e on e.id = i.eleve_id
+      where i.ecole_id = $1
+        and i.annee_scolaire = $2
+        and i.classe_id = $3
+        and ($4::boolean or i.statut = 'INSCRIT')
+      order by e.nom, e.prenom`,
+    [ecoleId, annee, classeId, inclureSortis],
   );
 }
 
@@ -62,11 +72,14 @@ export async function grilleNotes(
     sql<{ eleve_id: string; matiere_id: string; note: number }>(
       `select n.eleve_id, n.matiere_id, n.note::float8 as note
          from notes n
-         join eleves e on e.id = n.eleve_id
+         join inscriptions i
+           on i.eleve_id = n.eleve_id
+          and i.annee_scolaire = n.annee_scolaire
+          and i.ecole_id = n.ecole_id
         where n.ecole_id = $1
           and n.annee_scolaire = $2
           and n.trimestre = $3
-          and e.classe_id = $4`,
+          and i.classe_id = $4`,
       [ecoleId, annee, trimestre, classeId],
     ),
   ]);
@@ -84,6 +97,22 @@ export async function grilleNotes(
   return { eleves, matieres, notes };
 }
 
+/** Trimestres pour lesquels l'élève a au moins une note (archive incluse). */
+export async function trimestresNotesEleve(
+  ecoleId: string,
+  annee: string,
+  eleveId: string,
+): Promise<Trimestre[]> {
+  const lignes = await sql<{ trimestre: Trimestre }>(
+    `select distinct trimestre
+       from notes
+      where ecole_id = $1 and annee_scolaire = $2 and eleve_id = $3
+      order by trimestre`,
+    [ecoleId, annee, eleveId],
+  );
+  return lignes.map((ligne) => ligne.trimestre);
+}
+
 export type ResumeNotesClasse = {
   classe_id: string;
   notes_saisies: number;
@@ -97,19 +126,19 @@ export async function resumeNotes(
   trimestre: Trimestre,
 ): Promise<ResumeNotesClasse[]> {
   return sql<ResumeNotesClasse>(
-    `select e.classe_id,
+    `select i.classe_id,
             count(n.id)::int as notes_saisies,
             count(distinct n.eleve_id)::int as eleves_notes
-       from eleves e
+       from inscriptions i
        left join notes n
-         on n.eleve_id = e.id
-        and n.ecole_id = e.ecole_id
-        and n.annee_scolaire = e.annee_scolaire
+         on n.eleve_id = i.eleve_id
+        and n.ecole_id = i.ecole_id
+        and n.annee_scolaire = i.annee_scolaire
         and n.trimestre = $3
-      where e.ecole_id = $1
-        and e.annee_scolaire = $2
-        and e.statut = 'actif'
-      group by e.classe_id`,
+      where i.ecole_id = $1
+        and i.annee_scolaire = $2
+        and i.statut = 'INSCRIT'
+      group by i.classe_id`,
     [ecoleId, annee, trimestre],
   );
 }
@@ -139,6 +168,7 @@ export async function donneesBulletin(
   annee: string,
   classeId: string,
   trimestre: Trimestre,
+  inclureSortis = false,
 ): Promise<BulletinClasse | null> {
   const entete = await uneLigne<{
     id: string;
@@ -158,7 +188,7 @@ export async function donneesBulletin(
 
   const [matieres, eleves, lignes] = await Promise.all([
     listerMatieres(ecoleId),
-    listerElevesClasse(ecoleId, annee, classeId),
+    listerElevesClasse(ecoleId, annee, classeId, inclureSortis),
     sql<{
       eleve_id: string;
       matiere_id: string;
@@ -176,18 +206,21 @@ export async function donneesBulletin(
               n.composition::float8 as composition,
               n.appreciation
          from notes n
-         join eleves e on e.id = n.eleve_id
+         join inscriptions i
+           on i.eleve_id = n.eleve_id
+          and i.annee_scolaire = n.annee_scolaire
+          and i.ecole_id = n.ecole_id
          join saisies_notes s
            on s.ecole_id = n.ecole_id
           and s.annee_scolaire = n.annee_scolaire
           and s.trimestre = n.trimestre
           and s.matiere_id = n.matiere_id
-          and s.classe_id = e.classe_id
+          and s.classe_id = i.classe_id
           and s.statut = 'VALIDE'
         where n.ecole_id = $1
           and n.annee_scolaire = $2
           and n.trimestre = $3
-          and e.classe_id = $4`,
+          and i.classe_id = $4`,
       [ecoleId, annee, trimestre, classeId],
     ),
   ]);

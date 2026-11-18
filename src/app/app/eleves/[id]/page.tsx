@@ -3,17 +3,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import {
   ChevronRight,
+  Download,
+  FileText,
   LockKeyhole,
   MessageCircle,
   Pencil,
   Phone,
   ReceiptText,
-  Trash2,
   Wallet,
 } from "lucide-react";
 import { exigerSession, estDirecteur } from "@/lib/auth";
 import { peut } from "@/lib/offres";
-import { anneeScolaire, libelleAnnee } from "@/lib/mois";
+import { libelleAnnee } from "@/lib/mois";
 import {
   libelleEcheance,
   libelleNature,
@@ -21,6 +22,8 @@ import {
   suffixePeriode,
 } from "@/lib/periodes";
 import { getEleve, listerFraisEleve, listerPaiementsEleve } from "@/lib/data/eleves";
+import { anneeActive, compterAbsencesEleve, listerAbsences } from "@/lib/data/annees";
+import { trimestresNotesEleve } from "@/lib/data/notes";
 import { getEcole } from "@/lib/data/ecole";
 import {
   formatDate,
@@ -33,14 +36,21 @@ import {
   pourcentage,
 } from "@/lib/format";
 import { lienWhatsApp, rendreMessage } from "@/lib/whatsapp";
-import { LIBELLES_MODE, type Paiement } from "@/lib/types";
+import {
+  LIBELLES_MODE,
+  LIBELLES_STATUT_ELEVE,
+  type Paiement,
+} from "@/lib/types";
 import { Badge, BadgeStatut } from "@/components/ui/badge";
 import { LienBouton } from "@/components/ui/button";
-import { BoutonConfirmation } from "@/components/ui/bouton-confirmation";
 import { BoutonAnnulationPaiement } from "@/components/paiements/bouton-annulation";
 import { BoutonMasquagePortail } from "@/components/portail/bouton-masquage";
 import { BoutonPremium } from "@/components/offres/verrou-premium";
-import { supprimerEleve } from "@/lib/actions/eleves";
+import {
+  FormulaireAbsence,
+  BoutonSupprimerAbsence,
+} from "@/components/annees/formulaire-absence";
+import { FormulaireTransfert } from "@/components/annees/formulaire-transfert";
 import { estUuid } from "@/lib/actions/helpers";
 
 export const metadata: Metadata = { title: "Fiche élève" };
@@ -54,7 +64,7 @@ export default async function PageFicheEleve({
   const { id } = await params;
   if (!estUuid(id)) notFound();
 
-  const annee = anneeScolaire();
+  const active = await anneeActive(session.ecoleId);
   const [eleve, ecole] = await Promise.all([
     getEleve(session.ecoleId, id),
     getEcole(session.ecoleId),
@@ -62,10 +72,24 @@ export default async function PageFicheEleve({
   ]);
   if (!eleve || !ecole) notFound();
 
-  const [frais, paiements] = await Promise.all([
-    listerFraisEleve(session.ecoleId, eleve.id, annee),
-    listerPaiementsEleve(session.ecoleId, eleve.id),
-  ]);
+  // Un élève sorti garde l'année de son dernier parcours : sa fiche montre
+  // ses échéances et ses bulletins d'archive, pas la nouvelle année vide.
+  const annee = eleve.annee_scolaire || active;
+
+  const [frais, paiements, absences, compteurAbsences, trimestresNotes] =
+    await Promise.all([
+      listerFraisEleve(session.ecoleId, eleve.id, annee),
+      listerPaiementsEleve(session.ecoleId, eleve.id),
+      listerAbsences(session.ecoleId, eleve.annee_scolaire, {
+        eleveId: eleve.id,
+        limite: 40,
+      }),
+      compterAbsencesEleve(session.ecoleId, eleve.annee_scolaire, eleve.id),
+      trimestresNotesEleve(session.ecoleId, eleve.annee_scolaire, eleve.id),
+    ]);
+
+  const actif = eleve.statut === "actif";
+  const peutGerer = session.role === "directeur" || session.role === "secretaire";
 
   const directeur = estDirecteur(session);
   const peutPortail = peut(session.ecole, "portail_parent");
@@ -179,31 +203,71 @@ export default async function PageFicheEleve({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <LienBouton href={`/app/paiements/nouveau?eleve=${eleve.id}`} taille="sm">
-              <Wallet size={14} aria-hidden />
-              Encaisser
-            </LienBouton>
-            <LienBouton
-              href={`/app/eleves/${eleve.id}/modifier`}
-              variante="secondaire"
-              taille="sm"
+            {actif ? (
+              <>
+                <LienBouton href={`/app/paiements/nouveau?eleve=${eleve.id}`} taille="sm">
+                  <Wallet size={14} aria-hidden />
+                  Encaisser
+                </LienBouton>
+                <LienBouton
+                  href={`/app/eleves/${eleve.id}/modifier`}
+                  variante="secondaire"
+                  taille="sm"
+                >
+                  <Pencil size={13} aria-hidden />
+                  Modifier
+                </LienBouton>
+                {peutGerer && (
+                  <FormulaireTransfert
+                    eleveId={eleve.id}
+                    nomComplet={`${eleve.prenom} ${eleve.nom}`}
+                  />
+                )}
+              </>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-line-strong bg-surface-2 px-2.5 py-1 text-[11px] font-semibold text-muted">
+                {LIBELLES_STATUT_ELEVE[eleve.statut]}
+                {eleve.date_sortie ? ` le ${formatDate(eleve.date_sortie)}` : ""}
+              </span>
+            )}
+
+            <a
+              href={`/api/eleves/${eleve.id}/certificat?type=scolarite&annee=${encodeURIComponent(
+                eleve.annee_scolaire,
+              )}`}
+              className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-line-strong bg-surface px-2.5 text-[11.5px] font-semibold text-ink transition-colors hover:bg-surface-2"
             >
-              <Pencil size={13} aria-hidden />
-              Modifier
-            </LienBouton>
-            {directeur && (
-              <BoutonConfirmation
-                action={supprimerEleve}
-                champs={{ id: eleve.id }}
-                titre="Supprimer cet élève ?"
-                description={`${eleve.prenom} ${eleve.nom}, toutes ses échéances et tout son historique de paiements seront définitivement supprimés. Cette action est irréversible.`}
-                libelle="Supprimer"
-                libelleConfirmer="Supprimer l'élève"
-                texteConfirmation="SUPPRIMER"
-                redirigerVers="/app/eleves"
-                variante="danger"
-                icone={<Trash2 size={13} aria-hidden />}
-              />
+              <FileText size={13} aria-hidden />
+              Certificat
+            </a>
+            {eleve.statut === "transfere" && (
+              <a
+                href={`/api/eleves/${eleve.id}/certificat?type=transfert&annee=${encodeURIComponent(
+                  eleve.annee_scolaire,
+                )}`}
+                className="inline-flex h-8 items-center gap-1.5 rounded-sm border border-line-strong bg-surface px-2.5 text-[11.5px] font-semibold text-ink transition-colors hover:bg-surface-2"
+              >
+                <FileText size={13} aria-hidden />
+                Certificat de transfert
+              </a>
+            )}
+
+            {trimestresNotes.length > 0 && (
+              <div className="flex items-center gap-1">
+                {trimestresNotes.map((trimestre) => (
+                  <a
+                    key={trimestre}
+                    href={`/api/eleves/${eleve.id}/bulletin?annee=${encodeURIComponent(
+                      eleve.annee_scolaire,
+                    )}&trimestre=${trimestre}`}
+                    className="inline-flex h-8 items-center gap-1 rounded-sm border border-line-strong bg-surface px-2 text-[11px] font-semibold text-ink-2 transition-colors hover:bg-surface-2 hover:text-brand"
+                    title={`Bulletin du ${trimestre}e trimestre`}
+                  >
+                    <Download size={11} aria-hidden />
+                    T{trimestre}
+                  </a>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -380,7 +444,7 @@ export default async function PageFicheEleve({
                               Reçu
                             </a>
                           )}
-                          {ligne.statut !== "PAYE" && (
+                          {actif && ligne.statut !== "PAYE" && (
                             <Link
                               href={`/app/paiements/nouveau?eleve=${eleve.id}&frais=${ligne.id}`}
                               className="inline-flex items-center gap-1 rounded-sm bg-brand px-2 py-1 text-[11px] font-semibold text-white hover:bg-brand-deep"
@@ -445,7 +509,7 @@ export default async function PageFicheEleve({
                         </p>
                       </div>
                       <div className="mt-2 flex items-center gap-2">
-                        {ligne.statut !== "PAYE" ? (
+                        {actif && ligne.statut !== "PAYE" ? (
                           <LienBouton
                             href={`/app/paiements/nouveau?eleve=${eleve.id}&frais=${ligne.id}`}
                             taille="sm"
@@ -453,10 +517,14 @@ export default async function PageFicheEleve({
                             <Wallet size={12} aria-hidden />
                             Encaisser
                           </LienBouton>
-                        ) : (
+                        ) : ligne.statut === "PAYE" ? (
                           <span className="inline-flex items-center gap-1 text-[11px] font-medium text-paye">
                             <ReceiptText size={12} aria-hidden />
                             Inscription soldée
+                          </span>
+                        ) : (
+                          <span className="text-[11px] font-medium text-muted">
+                            Solde conservé dans l&apos;archive
                           </span>
                         )}
                         {paiement && (
@@ -551,6 +619,60 @@ export default async function PageFicheEleve({
         </aside>
       </div>
 
+      {/* ---------------- Absences ---------------- */}
+      <section className="card mt-5 overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3.5 sm:px-5">
+          <div>
+            <h2 className="text-[14px] font-semibold text-ink">Absences</h2>
+            <p className="mt-0.5 text-[11.5px] text-muted">
+              {compteurAbsences.total} absence
+              {compteurAbsences.total > 1 ? "s" : ""} ·{" "}
+              {compteurAbsences.justifiees} justifiée
+              {compteurAbsences.justifiees > 1 ? "s" : ""} · année{" "}
+              {eleve.annee_scolaire}
+            </p>
+          </div>
+        </div>
+
+        {actif && peutGerer && (
+          <div className="border-b border-line bg-surface-2 px-4 py-3 sm:px-5">
+            <FormulaireAbsence eleveId={eleve.id} />
+          </div>
+        )}
+
+        {absences.length === 0 ? (
+          <p className="px-4 py-6 text-center text-[12px] text-muted">
+            Aucune absence enregistrée pour cette année scolaire.
+          </p>
+        ) : (
+          <ul className="divide-y divide-line">
+            {absences.map((absence) => (
+              <li
+                key={absence.id}
+                className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 sm:px-5"
+              >
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="chiffre shrink-0 text-[12px] font-medium text-ink-2">
+                    {formatDate(absence.date_absence)}
+                  </span>
+                  <span className="truncate text-[12px] text-muted">
+                    {absence.motif?.trim() || "Sans motif"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge ton={absence.justifiee ? "succes" : "ochre"}>
+                    {absence.justifiee ? "Justifiée" : "Non justifiée"}
+                  </Badge>
+                  {actif && peutGerer && (
+                    <BoutonSupprimerAbsence id={absence.id} eleveId={eleve.id} />
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
       {/* ---------------- Historique ---------------- */}
       <section className="card mt-5 overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3.5 sm:px-5">
@@ -575,12 +697,14 @@ export default async function PageFicheEleve({
               Les encaissements apparaîtront ici avec leur numéro de reçu et la
               personne qui les a enregistrés.
             </p>
-            <div className="mt-4">
-              <LienBouton href={`/app/paiements/nouveau?eleve=${eleve.id}`} taille="sm">
-                <Wallet size={13} aria-hidden />
-                Encaisser un paiement
-              </LienBouton>
-            </div>
+            {actif && (
+              <div className="mt-4">
+                <LienBouton href={`/app/paiements/nouveau?eleve=${eleve.id}`} taille="sm">
+                  <Wallet size={13} aria-hidden />
+                  Encaisser un paiement
+                </LienBouton>
+              </div>
+            )}
           </div>
         ) : (
           <div className="overflow-x-auto">

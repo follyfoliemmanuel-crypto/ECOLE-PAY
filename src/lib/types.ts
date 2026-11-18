@@ -6,6 +6,23 @@ export type Plan = "essai" | "petite" | "moyenne" | "grosse";
 export type StatutEcole = "ESSAI" | "ACTIF" | "BLOQUE";
 export type StatutFrais = "PAYE" | "PARTIEL" | "NON_PAYE";
 export type ModePaiement = "ESPECES" | "FLOOZ" | "TMONEY";
+/** Un élève n'est jamais supprimé : il sort par transfert ou diplôme. */
+export type StatutEleve = "actif" | "inactif" | "transfere" | "diplome";
+export type StatutInscription =
+  | "INSCRIT"
+  | "PROMU"
+  | "REDOUBLANT"
+  | "TRANSFERE"
+  | "DIPLOME"
+  | "INACTIF";
+export type DecisionFinAnnee =
+  | "PASSE"
+  | "REDOUBLE"
+  | "DIPLOME"
+  | "TRANSFERE"
+  | "INACTIF"
+  | "ADMIS"
+  | "ECHOUE";
 
 /** Rythme de paiement choisi par la classe. */
 export type Frequence = "MENSUEL" | "TRANCHES" | "ANNUEL";
@@ -76,7 +93,18 @@ export type Classe = {
   nb_eleves: number;
   /** Tranches libres, dans l'ordre (vide pour mensuel / annuel). */
   tranches?: Tranche[];
+  /** NORMALE = promotion automatique, EXAMEN = décision du directeur. */
+  type_fin: TypeFinClasse;
+  /** Examen national préparé (CEPD, BEPC, BAC), pour une classe d'examen. */
+  examen: ExamenNational | null;
+  /** Classe d'accueil après réussite. null = fin de cycle (diplôme). */
+  classe_suivante_id: string | null;
+  /** Nom de la classe suivante, pour l'affichage. */
+  classe_suivante_nom?: string | null;
 };
+
+export type TypeFinClasse = "NORMALE" | "EXAMEN";
+export type ExamenNational = "CEPD" | "BEPC" | "BAC";
 
 export type Eleve = {
   id: string;
@@ -91,7 +119,11 @@ export type Eleve = {
   telephone_parent: string;
   annee_scolaire: string;
   type_inscription: "NOUVEAU" | "ANCIEN";
-  statut: "actif" | "inactif";
+  statut: StatutEleve;
+  /** Date de sortie (transfert ou diplôme), au format ISO. */
+  date_sortie: string | null;
+  /** Nouvelle école, pour un élève transféré. */
+  ecole_destination: string | null;
   date_inscription: string;
   /** Élève masqué du portail parent par le directeur. */
   masque_portail: boolean;
@@ -406,4 +438,84 @@ export const LIBELLES_STATUT_ECOLE: Record<StatutEcole, string> = {
   ESSAI: "Essai",
   ACTIF: "Active",
   BLOQUE: "Bloquée",
+};
+
+export const LIBELLES_STATUT_ELEVE: Record<StatutEleve, string> = {
+  actif: "Actif",
+  inactif: "Inactif",
+  transfere: "Transféré",
+  diplome: "Diplômé",
+};
+
+export const LIBELLES_STATUT_INSCRIPTION: Record<StatutInscription, string> = {
+  INSCRIT: "Inscrit",
+  PROMU: "Promu",
+  REDOUBLANT: "Redoublant",
+  TRANSFERE: "Transfert",
+  DIPLOME: "Diplômé",
+  INACTIF: "Inactif",
+};
+
+export const LIBELLES_DECISION: Record<DecisionFinAnnee, string> = {
+  PASSE: "Passe",
+  REDOUBLE: "Redouble",
+  DIPLOME: "Diplômé",
+  TRANSFERE: "Transféré",
+  INACTIF: "Inactif",
+  ADMIS: "Admis à l'examen",
+  ECHOUE: "Échoué à l'examen",
+};
+
+// ---------------------------------------------------------------------------
+//  Années scolaires, inscriptions, absences et rapports
+// ---------------------------------------------------------------------------
+export type AnneeScolaire = {
+  id: string;
+  libelle: string;
+  date_debut: string;
+  date_fin: string;
+  statut: "OUVERTE" | "CLOTUREE";
+  cloturee_le: string | null;
+  nb_eleves: number;
+  nb_sortis: number;
+};
+
+export type Inscription = {
+  id: string;
+  eleve_id: string;
+  annee_scolaire: string;
+  classe_id: string;
+  classe_nom: string;
+  type_inscription: "NOUVEAU" | "ANCIEN";
+  statut: StatutInscription;
+  decision: DecisionFinAnnee | null;
+  moyenne_annuelle: number | null;
+  date_inscription: string;
+  date_sortie: string | null;
+  ecole_destination: string | null;
+};
+
+export type Absence = {
+  id: string;
+  eleve_id: string;
+  nom: string;
+  prenom: string;
+  date_absence: string;
+  trimestre: number | null;
+  motif: string | null;
+  justifiee: boolean;
+};
+
+export type TypeRapport = "TRIMESTRIEL" | "ANNUEL";
+export type StatutRapport = "EN_ATTENTE" | "EN_COURS" | "PRET" | "ECHEC";
+
+export type Rapport = {
+  id: string;
+  annee_scolaire: string;
+  type: TypeRapport;
+  trimestre: number;
+  statut: StatutRapport;
+  erreur: string | null;
+  date_creation: string;
+  date_generation: string | null;
 };

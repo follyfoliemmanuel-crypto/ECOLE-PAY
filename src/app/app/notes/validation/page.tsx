@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { exigerSession, estDirecteur } from "@/lib/auth";
 import { peut } from "@/lib/offres";
-import { anneeScolaire, libelleAnnee } from "@/lib/mois";
+import { libelleAnnee } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
 import {
   compteursSaisies,
   echeanceNotes,
@@ -89,7 +90,7 @@ export default async function PageValidationNotes({
 
   const parametres = await searchParams;
   const trimestre = trimestreDepuisParametre(parametres.trimestre);
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
 
   if (!estDirecteur(session)) {
     return (

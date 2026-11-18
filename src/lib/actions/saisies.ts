@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import type { PoolClient } from "pg";
 import { getSession } from "../auth";
 import { sql, transaction, uneLigne } from "../db";
-import { anneeScolaire } from "../mois";
+import { anneeActive } from "../data/annees";
 import { peut } from "../offres";
 import { messageVerrou, moyenneEvaluations } from "../saisies";
 import type {
@@ -119,7 +119,7 @@ export async function demarrerSaisie(
   }
 
   // L'année scolaire n'est jamais lue depuis le navigateur.
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
 
   const [classe, matiere] = await Promise.all([
     uneLigne<{ id: string; nom: string; nb_eleves: number }>(
@@ -624,7 +624,7 @@ export async function definirEcheanceNotes(
   if ("error" in acces) return { error: acces.error };
   const { session } = acces;
 
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const trimestre = lireTrimestre(texte(donnees, "trimestre"));
   const dateLimite = texte(donnees, "date_limite");
 

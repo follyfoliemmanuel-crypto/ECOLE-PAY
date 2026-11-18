@@ -4,7 +4,7 @@ import { exigerSession } from "../auth";
 import { nombreTranchesMax } from "../data/classes";
 import { toutesLesImpayes } from "../data/impayes";
 import { formatTelephone } from "../format";
-import { anneeScolaire } from "../mois";
+import { anneeActive } from "../data/annees";
 import { peut } from "../offres";
 import {
   frequenceDepuisParametre,
@@ -24,7 +24,7 @@ export async function chargerImpayesExport(
   const session = await exigerSession();
   if (!peut(session.ecole, "exports")) return [];
 
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const frequence = frequenceDepuisParametre(frequenceParam);
   const nbTranches =
     frequence === "TRANCHES"

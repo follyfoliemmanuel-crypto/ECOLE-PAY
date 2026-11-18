@@ -37,15 +37,18 @@ export async function listerClasses(
   const classes = await sql<Classe>(
     `select c.id, c.nom, c.montant_periode, c.frequence_paiement,
             c.frais_inscription, c.frais_reinscription,
+            c.type_fin, c.examen, c.classe_suivante_id,
+            cs.nom as classe_suivante_nom,
             count(e.id)::int as nb_eleves
        from classes c
+       left join classes cs on cs.id = c.classe_suivante_id
        left join eleves e
          on e.classe_id = c.id
         and e.ecole_id = c.ecole_id
         and e.annee_scolaire = $2
         and e.statut = 'actif'
       where c.ecole_id = $1
-      group by c.id
+      group by c.id, cs.nom
       order by c.ordre, c.nom`,
     [ecoleId, annee],
   );
@@ -59,9 +62,12 @@ export async function getClasse(
   const classe = await uneLigne<Classe>(
     `select c.id, c.nom, c.montant_periode, c.frequence_paiement,
             c.frais_inscription, c.frais_reinscription,
+            c.type_fin, c.examen, c.classe_suivante_id,
+            cs.nom as classe_suivante_nom,
             (select count(*)::int from eleves e
               where e.classe_id = c.id and e.statut = 'actif') as nb_eleves
        from classes c
+       left join classes cs on cs.id = c.classe_suivante_id
       where c.id = $1 and c.ecole_id = $2`,
     [classeId, ecoleId],
   );
@@ -93,6 +99,8 @@ export async function listerClassesAvecStats(
   const classes = await sql<ClasseStats>(
     `select c.id, c.nom, c.montant_periode, c.frequence_paiement,
             c.frais_inscription, c.frais_reinscription,
+            c.type_fin, c.examen, c.classe_suivante_id,
+            cs.nom as classe_suivante_nom,
             count(distinct e.id)::int as nb_eleves,
             count(f.id) filter (where f.statut = 'PAYE')::int as payes,
             count(f.id) filter (where f.statut = 'PARTIEL')::int as partiels,
@@ -101,6 +109,7 @@ export async function listerClassesAvecStats(
             coalesce(sum(f.montant_paye), 0)::int as encaisse,
             coalesce(sum(f.reste), 0)::int as restant
        from classes c
+       left join classes cs on cs.id = c.classe_suivante_id
        left join eleves e
          on e.classe_id = c.id
         and e.ecole_id = c.ecole_id
@@ -114,7 +123,7 @@ export async function listerClassesAvecStats(
         and f.frequence_paiement = $3
         and f.periode = $4
       where c.ecole_id = $1
-      group by c.id
+      group by c.id, cs.nom
       order by c.ordre, c.nom`,
     [ecoleId, annee, frequence, periode],
   );

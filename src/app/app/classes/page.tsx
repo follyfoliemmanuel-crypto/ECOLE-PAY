@@ -7,7 +7,8 @@ import {
   Users,
 } from "lucide-react";
 import { exigerSession, estDirecteur } from "@/lib/auth";
-import { anneeScolaire, libelleAnnee } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
+import { libelleAnnee } from "@/lib/mois";
 import {
   frequenceDepuisParametre,
   LIBELLES_FREQUENCE,
@@ -35,7 +36,7 @@ export default async function PageClasses({
 }) {
   const session = await exigerSession();
   const parametres = await searchParams;
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const frequence = frequenceDepuisParametre(parametres.frequence);
   const periode = periodeDepuisParametre(parametres.periode, frequence);
   const classes = await listerClassesAvecStats(
@@ -121,7 +122,7 @@ export default async function PageClasses({
               {limite.classes === null ? "∞" : limite.classes} classes utilisées
             </span>
           </div>
-          <NouvelleClasse />
+          <NouvelleClasse classes={classes} />
         </section>
       ) : (
         <div className="mb-5 rounded-sm border border-line bg-surface-2 px-4 py-3 text-[12px] text-muted">
@@ -288,7 +289,7 @@ export default async function PageClasses({
 
                 {directeur && (
                   <div className="flex items-center justify-between gap-2 border-t border-line bg-surface-2 px-3 py-2">
-                    <ModifierClasse classe={classe} />
+                    <ModifierClasse classe={classe} classes={classes} />
                     <BoutonConfirmation
                       action={supprimerClasse}
                       champs={{ id: classe.id }}

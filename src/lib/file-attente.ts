@@ -12,7 +12,7 @@ import { sql } from "./db";
  * la latence d'un envoi WhatsApp ou d'un gros calcul.
  */
 
-export type TypeTache = "BULLETIN_WHATSAPP";
+export type TypeTache = "BULLETIN_WHATSAPP" | "RAPPORT";
 
 export type StatutTache = "EN_ATTENTE" | "EN_COURS" | "TERMINE" | "ECHEC";
 

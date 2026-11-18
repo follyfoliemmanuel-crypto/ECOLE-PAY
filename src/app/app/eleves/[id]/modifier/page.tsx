@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight } from "lucide-react";
 import { exigerSession } from "@/lib/auth";
-import { anneeScolaire } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
 import { getEleve } from "@/lib/data/eleves";
 import { listerClasses } from "@/lib/data/classes";
 import { estUuid } from "@/lib/actions/helpers";
@@ -22,7 +22,7 @@ export default async function PageModifierEleve({
   const { id } = await params;
   if (!estUuid(id)) notFound();
 
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const [eleve, classes] = await Promise.all([
     getEleve(session.ecoleId, id),
     listerClasses(session.ecoleId, annee),

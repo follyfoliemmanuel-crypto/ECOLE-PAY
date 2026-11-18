@@ -3,7 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { transaction, uneLigne } from "../db";
 import { getSession } from "../auth";
-import { anneeScolaire, libelleAnnee } from "../mois";
+import { libelleAnnee } from "../mois";
+import { anneeActive } from "../data/annees";
 import { libelleNature, libellePeriodeFrais } from "../periodes";
 import { dateInput, formatDateHeure, formatF, formatFCFA } from "../format";
 import { lienWhatsApp, rendreMessage } from "../whatsapp";
@@ -58,7 +59,7 @@ export async function enregistrerPaiement(
     datePaiement = `${dateSaisie}T12:00:00Z`;
   }
 
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
 
   try {
     const resultat = await transaction(async (client) => {

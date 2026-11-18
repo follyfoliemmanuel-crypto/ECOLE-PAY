@@ -6,7 +6,8 @@ import {
   Users,
 } from "lucide-react";
 import { exigerSession } from "@/lib/auth";
-import { anneeScolaire, libelleAnnee } from "@/lib/mois";
+import { libelleAnnee } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
 import { estUuid } from "@/lib/actions/helpers";
 import { compterClasses, compterElevesActifs, getEcole } from "@/lib/data/ecole";
 import { getElevePaiement } from "@/lib/data/eleves";
@@ -24,7 +25,7 @@ export default async function PageNouveauPaiement({
 }) {
   const session = await exigerSession();
   const parametres = await searchParams;
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
 
   const eleveId =
     parametres.eleve && estUuid(parametres.eleve) ? parametres.eleve : null;

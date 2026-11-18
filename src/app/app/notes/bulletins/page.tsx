@@ -4,7 +4,8 @@ import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, FileText, LockKeyhole, MessageCircle } from "lucide-react";
 import { exigerSession } from "@/lib/auth";
 import { peut } from "@/lib/offres";
-import { anneeScolaire, libelleAnnee } from "@/lib/mois";
+import { libelleAnnee } from "@/lib/mois";
+import { anneeActive } from "@/lib/data/annees";
 import { listerClasses } from "@/lib/data/classes";
 import { donneesBulletin } from "@/lib/data/notes";
 import { estUuid } from "@/lib/actions/helpers";
@@ -54,7 +55,7 @@ export default async function PageBulletins({
     redirect(`/app/notes?trimestre=${trimestre}`);
   }
 
-  const annee = anneeScolaire();
+  const annee = await anneeActive(session.ecoleId);
   const [classes, bulletin] = await Promise.all([
     listerClasses(session.ecoleId, annee),
     donneesBulletin(session.ecoleId, annee, parametres.classe, trimestre),
