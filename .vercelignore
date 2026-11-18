@@ -1,0 +1,15 @@
+# Application de bureau et artefacts locaux : jamais envoyés à Vercel
+desktop/
+release/
+build/
+out/
+
+# Secrets
+.env
+.env.local
+.env*.local
+
+# Divers
+.vercel
+*.tsbuildinfo
+npm-debug.log*
