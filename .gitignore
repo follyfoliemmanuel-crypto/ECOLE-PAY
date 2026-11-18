@@ -9,9 +9,9 @@ out/
 build/
 next-env.d.ts
 
-# Application de bureau (electron-builder)
+# Application de bureau (electron-builder) : jamais dans le dépôt
 release/
-desktop/build/*.ico
+desktop/
 
 # Environnement (ne jamais committer)
 .env
