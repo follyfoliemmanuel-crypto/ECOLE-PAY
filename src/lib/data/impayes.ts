@@ -14,7 +14,10 @@ const FILTRE_PERIODE = `
   and f.statut <> 'PAYE'
   and e.statut = 'actif'
   and (
-    (f.type_frais = 'SCOLARITE'
+    ($4::int = 0 and f.type_frais = 'SCOLARITE')
+    or
+    ($4::int > 0
+      and f.type_frais = 'SCOLARITE'
       and f.frequence_paiement = $3
       and f.periode = $4)
     or f.type_frais in ('INSCRIPTION', 'REINSCRIPTION')

@@ -137,7 +137,13 @@ export async function getDashboard(
   frequence: Frequence,
   periode: number,
 ): Promise<Dashboard> {
-  const mois = frequence === "MENSUEL" ? moisCalendaire(annee, periode) : null;
+  const mois =
+    frequence === "MENSUEL" && periode > 0
+      ? moisCalendaire(annee, periode)
+      : {
+          annee: new Date().getFullYear(),
+          mois: new Date().getMonth() + 1,
+        };
 
   const [resume, inscriptions, classes, impayes, serie, derniersPaiements, recettesLignes] =
     await Promise.all([
@@ -146,16 +152,80 @@ export async function getDashboard(
                 coalesce(sum(f.montant_du), 0)::int as attendu,
                 coalesce(sum(f.montant_paye), 0)::int as encaisse,
                 coalesce(sum(f.reste), 0)::int as restant,
-                count(f.id) filter (where f.statut = 'PAYE')::int as payes,
-                count(f.id) filter (where f.statut = 'PARTIEL')::int as partiels,
-                count(f.id) filter (where f.statut = 'NON_PAYE')::int as impayes
+                count(distinct e.id) filter (
+                  where not exists (
+                    select 1 from frais f2
+                     where f2.eleve_id = e.id
+                       and f2.ecole_id = $1
+                       and f2.annee_scolaire = $2
+                       and f2.type_frais = 'SCOLARITE'
+                       and (
+                         $4::int = 0
+                         or (f2.frequence_paiement = $3 and f2.periode = $4)
+                       )
+                       and f2.reste > 0
+                  )
+                )::int as payes,
+                count(distinct e.id) filter (
+                  where exists (
+                    select 1 from frais f2
+                     where f2.eleve_id = e.id
+                       and f2.ecole_id = $1
+                       and f2.annee_scolaire = $2
+                       and f2.type_frais = 'SCOLARITE'
+                       and (
+                         $4::int = 0
+                         or (f2.frequence_paiement = $3 and f2.periode = $4)
+                       )
+                       and f2.montant_paye > 0
+                  )
+                  and exists (
+                    select 1 from frais f2
+                     where f2.eleve_id = e.id
+                       and f2.ecole_id = $1
+                       and f2.annee_scolaire = $2
+                       and f2.type_frais = 'SCOLARITE'
+                       and (
+                         $4::int = 0
+                         or (f2.frequence_paiement = $3 and f2.periode = $4)
+                       )
+                       and f2.reste > 0
+                  )
+                )::int as partiels,
+                count(distinct e.id) filter (
+                  where exists (
+                    select 1 from frais f2
+                     where f2.eleve_id = e.id
+                       and f2.ecole_id = $1
+                       and f2.annee_scolaire = $2
+                       and f2.type_frais = 'SCOLARITE'
+                       and (
+                         $4::int = 0
+                         or (f2.frequence_paiement = $3 and f2.periode = $4)
+                       )
+                  )
+                  and not exists (
+                    select 1 from frais f2
+                     where f2.eleve_id = e.id
+                       and f2.ecole_id = $1
+                       and f2.annee_scolaire = $2
+                       and f2.type_frais = 'SCOLARITE'
+                       and (
+                         $4::int = 0
+                         or (f2.frequence_paiement = $3 and f2.periode = $4)
+                       )
+                       and f2.montant_paye > 0
+                  )
+                )::int as impayes
            from frais f
            join eleves e on e.id = f.eleve_id
           where f.ecole_id = $1
             and f.annee_scolaire = $2
             and f.type_frais = 'SCOLARITE'
-            and f.frequence_paiement = $3
-            and f.periode = $4
+            and (
+              $4::int = 0
+              or (f.frequence_paiement = $3 and f.periode = $4)
+            )
             and e.statut = 'actif'
             and e.annee_scolaire = $2`,
         [ecoleId, annee, frequence, periode],
@@ -181,9 +251,56 @@ export async function getDashboard(
       sql<LigneClasse>(
         `select c.id, c.nom, c.montant_periode, c.frequence_paiement,
                 count(distinct e.id)::int as nb_eleves,
-                count(f.id) filter (where f.statut = 'PAYE')::int as payes,
-                count(f.id) filter (where f.statut = 'PARTIEL')::int as partiels,
-                count(f.id) filter (where f.statut = 'NON_PAYE')::int as impayes,
+                count(distinct e.id) filter (
+                  where not exists (
+                    select 1 from frais f2
+                     where f2.eleve_id = e.id
+                       and f2.ecole_id = c.ecole_id
+                       and f2.annee_scolaire = $2
+                       and f2.type_frais = 'SCOLARITE'
+                       and ($4::int = 0 or (f2.frequence_paiement = $3 and f2.periode = $4))
+                       and f2.reste > 0
+                  )
+                )::int as payes,
+                count(distinct e.id) filter (
+                  where exists (
+                    select 1 from frais f2
+                     where f2.eleve_id = e.id
+                       and f2.ecole_id = c.ecole_id
+                       and f2.annee_scolaire = $2
+                       and f2.type_frais = 'SCOLARITE'
+                       and ($4::int = 0 or (f2.frequence_paiement = $3 and f2.periode = $4))
+                       and f2.montant_paye > 0
+                  )
+                  and exists (
+                    select 1 from frais f2
+                     where f2.eleve_id = e.id
+                       and f2.ecole_id = c.ecole_id
+                       and f2.annee_scolaire = $2
+                       and f2.type_frais = 'SCOLARITE'
+                       and ($4::int = 0 or (f2.frequence_paiement = $3 and f2.periode = $4))
+                       and f2.reste > 0
+                  )
+                )::int as partiels,
+                count(distinct e.id) filter (
+                  where exists (
+                    select 1 from frais f2
+                     where f2.eleve_id = e.id
+                       and f2.ecole_id = c.ecole_id
+                       and f2.annee_scolaire = $2
+                       and f2.type_frais = 'SCOLARITE'
+                       and ($4::int = 0 or (f2.frequence_paiement = $3 and f2.periode = $4))
+                  )
+                  and not exists (
+                    select 1 from frais f2
+                     where f2.eleve_id = e.id
+                       and f2.ecole_id = c.ecole_id
+                       and f2.annee_scolaire = $2
+                       and f2.type_frais = 'SCOLARITE'
+                       and ($4::int = 0 or (f2.frequence_paiement = $3 and f2.periode = $4))
+                       and f2.montant_paye > 0
+                  )
+                )::int as impayes,
                 coalesce(sum(f.montant_du), 0)::int as attendu,
                 coalesce(sum(f.montant_paye), 0)::int as encaisse,
                 coalesce(sum(f.reste), 0)::int as restant,
@@ -202,8 +319,8 @@ export async function getDashboard(
             and f.ecole_id = c.ecole_id
             and f.annee_scolaire = $2
             and f.type_frais = 'SCOLARITE'
-            and f.frequence_paiement = $3
-            and f.periode = $4
+            and f.frequence_paiement = c.frequence_paiement
+            and ($4::int = 0 or (f.frequence_paiement = $3 and f.periode = $4))
           where c.ecole_id = $1
           group by c.id
           order by c.ordre, c.nom`,
@@ -222,9 +339,9 @@ export async function getDashboard(
             and f.statut <> 'PAYE'
             and e.statut = 'actif'
             and (
-              (f.type_frais = 'SCOLARITE'
-                and f.frequence_paiement = $3
-                and f.periode = $4)
+              ($4::int = 0 and f.type_frais = 'SCOLARITE')
+              or ($4::int > 0 and f.type_frais = 'SCOLARITE'
+                  and f.frequence_paiement = $3 and f.periode = $4)
               or f.type_frais in ('INSCRIPTION', 'REINSCRIPTION')
             )
           order by f.reste desc, e.nom
@@ -267,33 +384,62 @@ export async function getDashboard(
           limit 5`,
         [ecoleId],
       ),
-      mois
-        ? sql<{ periode: number; montant: number }>(
-            `select p.periode, coalesce(sum(p.montant), 0)::int as montant
-               from paiements p
-              where p.ecole_id = $1
-                and p.annule = false
-                and p.type_frais = 'SCOLARITE'
-                and p.frequence_paiement = 'MENSUEL'
-                and p.date_paiement >= make_date($2::int, $3::int, 1)
-                and p.date_paiement < make_date($2::int, $3::int, 1) + interval '1 month'
-              group by p.periode
-              order by montant desc`,
-            [ecoleId, mois.annee, mois.mois],
-          )
-        : Promise.resolve([] as { periode: number; montant: number }[]),
+      sql<{ periode: number; montant: number }>(
+        `select p.periode, coalesce(sum(p.montant), 0)::int as montant
+           from paiements p
+           join frais f on f.id = p.frais_id
+          where p.ecole_id = $1
+            and f.annee_scolaire = $4
+            and p.annule = false
+            and (
+              $5::boolean
+              or (p.date_paiement >= make_date($2::int, $3::int, 1)
+                  and p.date_paiement < make_date($2::int, $3::int, 1) + interval '1 month')
+            )
+          group by p.periode
+          order by montant desc`,
+        [ecoleId, mois.annee, mois.mois, annee, periode === 0],
+      ),
     ]);
 
-  const recettes: RecettesMois | null = mois
-    ? {
+  // « Toutes les périodes » = tout l'encaissé de l'année scolaire, quelle que
+  // soit la fréquence des classes et le mois du paiement. C'est ce total qui
+  // doit bouger dès qu'un encaissement est validé, même en milieu de période.
+  if (periode === 0) {
+    const totalAnnee = recettesLignes.reduce(
+      (somme, ligne) => somme + ligne.montant,
+      0,
+    );
+    return {
+      resume: resume ?? RESUME_VIDE,
+      inscriptions: inscriptions ?? INSCRIPTIONS_VIDES,
+      classes,
+      impayes,
+      serie,
+      derniersPaiements,
+      recettes: {
         annee: mois.annee,
         mois: mois.mois,
-        total: recettesLignes.reduce((somme, ligne) => somme + ligne.montant, 0),
-        pourPeriode:
-          recettesLignes.find((ligne) => ligne.periode === periode)?.montant ?? 0,
-        autres: recettesLignes.filter((ligne) => ligne.periode !== periode),
-      }
-    : null;
+        total: totalAnnee,
+        pourPeriode: totalAnnee,
+        autres: [],
+      },
+    };
+  }
+
+  const recettes: RecettesMois = {
+    annee: mois.annee,
+    mois: mois.mois,
+    total: recettesLignes.reduce((somme, ligne) => somme + ligne.montant, 0),
+    pourPeriode:
+      periode === 0
+        ? recettesLignes.reduce((somme, ligne) => somme + ligne.montant, 0)
+        : (recettesLignes.find((ligne) => ligne.periode === periode)?.montant ?? 0),
+    autres:
+      periode === 0
+        ? []
+        : recettesLignes.filter((ligne) => ligne.periode !== periode),
+  };
 
   return {
     resume: resume ?? RESUME_VIDE,

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { sql, transaction, uneLigne } from "../db";
 import type { PoolClient } from "pg";
-import { getSession } from "../auth";
+import { getSession, refusEcriture } from "../auth";
 import { estFrequence, LIBELLES_FREQUENCE } from "../periodes";
 import { compterClasses, limitesOffre } from "../data/ecole";
 import { offreEffective } from "../offres";
@@ -274,6 +274,8 @@ export async function creerClasse(
 ): Promise<ResultatAction> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (!estDirecteur(session.role)) {
     return { error: "Seul le directeur peut créer une classe." };
   }
@@ -341,6 +343,8 @@ export async function modifierClasse(
 ): Promise<ResultatAction> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (!estDirecteur(session.role)) {
     return { error: "Seul le directeur peut modifier une classe." };
   }
@@ -426,6 +430,8 @@ export async function modifierClasse(
 export async function supprimerClasse(donnees: FormData): Promise<ResultatAction> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (!estDirecteur(session.role)) {
     return { error: "Seul le directeur peut supprimer une classe." };
   }

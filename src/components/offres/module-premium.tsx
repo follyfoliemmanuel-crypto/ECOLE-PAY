@@ -29,7 +29,7 @@ export function ModulePremium({
           Module débloqué par votre offre {offre}.
         </p>
         <Link
-          href="/app/parametres#abonnement"
+          href="/abonnement"
           className="text-[11.5px] font-semibold text-paye underline underline-offset-2"
         >
           Voir mon abonnement
@@ -60,8 +60,8 @@ export function ModulePremium({
           </ol>
           <div className="border-t border-line bg-surface-2 px-4 py-3 text-[11.5px] text-muted sm:px-5">
             Les données saisies restent enregistrées même si vous changez
-            d&apos;offre plus tard : un retour à STARTER ou PRO masque seulement
-            le module.
+            d&apos;offre plus tard : un retour à STARTER ou STANDARD masque
+            seulement le module.
           </div>
         </section>
 

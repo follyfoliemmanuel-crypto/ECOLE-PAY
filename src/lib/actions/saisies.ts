@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { PoolClient } from "pg";
-import { getSession } from "../auth";
+import { getSession, refusEcriture } from "../auth";
 import { sql, transaction, uneLigne } from "../db";
 import { anneeActive } from "../data/annees";
 import { peut } from "../offres";
@@ -27,10 +27,12 @@ async function accesProf(): Promise<AccesProf> {
   if (!session || session.role !== "prof" || !session.profId) {
     return { error: "Votre session a expiré. Reconnectez-vous." };
   }
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (!peut(session.ecole, "saisie_notes_prof")) {
     return {
       error:
-        "Cette fonctionnalité est réservée à l'offre PREMIUM 40.000F. Contactez le directeur.",
+        "Cette fonctionnalité est réservée à l'offre PREMIUM 35.000F. Contactez le directeur.",
     };
   }
   return { session, profId: session.profId };
@@ -41,13 +43,15 @@ type AccesDirecteur = { session: Session } | { error: string };
 async function accesDirecteur(): Promise<AccesDirecteur> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (session.role !== "directeur") {
     return { error: "Seul le directeur peut valider ou libérer les notes." };
   }
   if (!peut(session.ecole, "validation_notes")) {
     return {
       error:
-        "Cette fonctionnalité est réservée à l'offre PREMIUM 40.000F. Passez à PREMIUM pour valider les notes des professeurs.",
+        "Cette fonctionnalité est réservée à l'offre PREMIUM 35.000F. Passez à PREMIUM pour valider les notes des professeurs.",
     };
   }
   return { session };

@@ -20,7 +20,7 @@ import {
 } from "@/lib/periodes";
 import { getEcole } from "@/lib/data/ecole";
 import { listerPaiements } from "@/lib/data/paiements";
-import { nombreTranchesMax } from "@/lib/data/classes";
+import { frequenceParDefautEcole, nombreTranchesMax } from "@/lib/data/classes";
 import { formatDateHeure, formatF, formatNombre } from "@/lib/format";
 import { lienWhatsApp, rendreMessage } from "@/lib/whatsapp";
 import { LIBELLES_MODE, type ModePaiement } from "@/lib/types";
@@ -58,8 +58,9 @@ export default async function PagePaiements({
   const session = await exigerSession();
   const parametres = await searchParams;
   const annee = await anneeActive(session.ecoleId);
-  const frequence = frequenceDepuisParametre(parametres.frequence);
-  const periode = periodeDepuisParametre(parametres.periode, frequence);
+  const defautFrequence = await frequenceParDefautEcole(session.ecoleId);
+  const frequence = frequenceDepuisParametre(parametres.frequence, defautFrequence);
+  const periode = periodeDepuisParametre(parametres.periode, frequence, 0);
   const mode = modeDepuisParametre(parametres.mode);
   const page = Math.max(1, Number.parseInt(parametres.page ?? "1", 10) || 1);
 

@@ -1,9 +1,18 @@
 export type Role = "directeur" | "secretaire" | "comptable" | "prof";
 /** Offre commerciale active. L'essai donne temporairement accès à PREMIUM. */
-export type Offre = "STARTER" | "PRO" | "PREMIUM";
+export type Offre = "STARTER" | "STANDARD" | "PREMIUM";
+/** Plan enregistré dans la table `subscriptions` (minuscules). */
+export type PlanAbo = "starter" | "standard" | "premium";
+/** Statut d'un abonnement dans `subscriptions`. */
+export type StatutAbo = "active" | "blocked";
 /** @deprecated Ancien modèle de formules, conservé uniquement pour les migrations SQL. */
 export type Plan = "essai" | "petite" | "moyenne" | "grosse";
 export type StatutEcole = "ESSAI" | "ACTIF" | "BLOQUE";
+/** Pourquoi une école est en lecture seule (null = modifications permises). */
+export type MotifLectureSeule =
+  | "ESSAI_TERMINE"
+  | "ABONNEMENT_TERMINE"
+  | "BLOQUE";
 export type StatutFrais = "PAYE" | "PARTIEL" | "NON_PAYE";
 export type ModePaiement = "ESPECES" | "FLOOZ" | "TMONEY";
 /** Un élève n'est jamais supprimé : il sort par transfert ou diplôme. */
@@ -60,6 +69,20 @@ export type Ecole = {
   modele_relance: string;
 };
 
+/** Abonnement mensuel courant d'une école (table `subscriptions`). */
+export type AbonnementEcole = {
+  plan: Offre;
+  statut: StatutAbo;
+  /** Premier jour couvert (AAAA-MM-JJ). */
+  dateDebut: string;
+  /** Dernier jour couvert (AAAA-MM-JJ). */
+  dateFin: string;
+  /** Date du dernier paiement reçu, ou null. */
+  dernierPaiement: string | null;
+  montant: number;
+  moisPayes: number;
+};
+
 export type Session = {
   userId: string;
   ecoleId: string;
@@ -79,6 +102,12 @@ export type Session = {
     statut: StatutEcole;
     dateFinEssai: string | null;
     dateFinAbonnement: string | null;
+    /** Abonnement mensuel courant, ou null pour une école en essai. */
+    abonnement: AbonnementEcole | null;
+    /** Vrai quand le paiement du mois n'est pas reçu : consultation seule. */
+    lectureSeule: boolean;
+    /** Raison de la lecture seule, null quand les modifications sont permises. */
+    motifLectureSeule: MotifLectureSeule | null;
   };
 };
 
@@ -416,7 +445,7 @@ export const LIBELLES_STATUT: Record<StatutFrais, string> = {
 
 export const LIBELLES_OFFRE: Record<Offre, string> = {
   STARTER: "STARTER",
-  PRO: "PRO",
+  STANDARD: "STANDARD",
   PREMIUM: "PREMIUM",
 };
 

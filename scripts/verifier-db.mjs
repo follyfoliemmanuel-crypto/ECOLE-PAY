@@ -46,6 +46,7 @@ function afficherCible(valeur) {
 
 const TABLES = [
   "ecoles",
+  "subscriptions",
   "users",
   "classes",
   "tranches",
@@ -69,6 +70,12 @@ const TABLES = [
 
 /** Colonnes indispensables au modèle « tranches libres » et frais d'inscription. */
 const COLONNES = [
+  ["subscriptions", "school_id"],
+  ["subscriptions", "plan"],
+  ["subscriptions", "status"],
+  ["subscriptions", "date_debut"],
+  ["subscriptions", "date_fin"],
+  ["subscriptions", "dernier_paiement"],
   ["ecoles", "offre"],
   ["ecoles", "statut"],
   ["ecoles", "date_fin_essai"],

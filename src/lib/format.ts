@@ -58,11 +58,16 @@ export function nomComplet(nom: string, prenom: string): string {
 /**
  * Normalise un numéro togolais sur 8 chiffres.
  * Accepte "90 12 34 56", "+228 90123456", "22890123456".
+ *
+ * Tous les mobiles togolais commencent par 7 ou 9 (Togocom / Moov Africa) :
+ * 70-73 et 90-93 (Togocom), 78-79 et 96-99 (Moov Africa), sans oublier les
+ * plages 74-77 et 94-95 déjà attribuées. On accepte donc tout numéro à
+ * 8 chiffres commençant par 7 ou 9, au lieu de forcer un « 90 ».
  */
 export function normaliserTelephone(brut: string): string | null {
   let chiffres = (brut ?? "").replace(/\D/g, "");
   if (chiffres.startsWith("228")) chiffres = chiffres.slice(3);
-  if (!/^(90|91|92|93|70|99)\d{6}$/.test(chiffres)) return null;
+  if (!/^[79]\d{7}$/.test(chiffres)) return null;
   return chiffres;
 }
 

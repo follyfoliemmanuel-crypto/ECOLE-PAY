@@ -19,7 +19,7 @@ import {
   libellePeriode,
   periodeDepuisParametre,
 } from "@/lib/periodes";
-import { nombreTranchesMax } from "@/lib/data/classes";
+import { frequenceParDefautEcole, nombreTranchesMax } from "@/lib/data/classes";
 import { getStatistiques } from "@/lib/data/statistiques";
 import { formatF, formatNombre, formatTelephone, pourcentage } from "@/lib/format";
 import { VerrouOffre } from "@/components/offres/verrou-offre";
@@ -67,12 +67,13 @@ export default async function PageStatistiques({
 
   const parametres = await searchParams;
   const annee = await anneeActive(session.ecoleId);
-  const frequence = frequenceDepuisParametre(parametres.frequence);
+  const defautFrequence = await frequenceParDefautEcole(session.ecoleId);
+  const frequence = frequenceDepuisParametre(parametres.frequence, defautFrequence);
   const nbTranches = await nombreTranchesMax(session.ecoleId);
   const periode = periodeDepuisParametre(
     parametres.periode,
     frequence,
-    undefined,
+    0,
     nbTranches,
   );
   const nomPeriode = libellePeriode(frequence, periode, annee, false, nbTranches);

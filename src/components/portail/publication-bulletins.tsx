@@ -39,7 +39,7 @@ const STYLES: Record<EnvoiAffiche["statut"], string> = {
 
 /**
  * Publication des bulletins sur le portail parent et envoi WhatsApp.
- * L'envoi automatique est réservé au PREMIUM ; en PRO, le portail suffit.
+ * L'envoi automatique WhatsApp est réservé au PREMIUM.
  */
 export function PublicationBulletins({
   classeId,
@@ -105,7 +105,7 @@ export function PublicationBulletins({
                   : "border-line-strong bg-surface-2 text-muted",
               )}
             >
-              {envoiAutomatique ? "PREMIUM" : "Portail PRO"}
+              {envoiAutomatique ? "PREMIUM" : "Portail"}
             </span>
           </div>
           <p className="mt-1 max-w-2xl text-[11.5px] leading-relaxed text-muted">

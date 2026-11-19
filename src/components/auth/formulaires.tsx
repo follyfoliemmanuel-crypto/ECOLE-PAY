@@ -356,8 +356,8 @@ export function FormulaireInscription() {
         <p className="text-[12.5px] leading-relaxed text-muted">
           <strong className="font-semibold text-ink">30 jours gratuits.</strong>{" "}
           Toutes les fonctions de l&apos;offre PREMIUM sont offertes pendant
-          l&apos;essai, sans carte bancaire. Vous choisissez ensuite STARTER, PRO
-          ou PREMIUM si l&apos;essai vous convainc.
+          l&apos;essai, sans carte bancaire. Vous choisissez ensuite STARTER,
+          STANDARD ou PREMIUM si l&apos;essai vous convainc.
         </p>
       </div>
 

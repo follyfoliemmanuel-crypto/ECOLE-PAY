@@ -26,7 +26,7 @@ import {
 } from "@/lib/periodes";
 import { getDashboard, type Impaye } from "@/lib/data/dashboard";
 import { getEcole } from "@/lib/data/ecole";
-import { nombreTranchesMax } from "@/lib/data/classes";
+import { frequenceParDefautEcole, nombreTranchesMax } from "@/lib/data/classes";
 import { listerImpayes } from "@/lib/data/impayes";
 import {
   formatDate,
@@ -65,8 +65,9 @@ export default async function PageTableauDeBord({
   const session = await exigerSession();
   const parametres = await searchParams;
   const annee = await anneeActive(session.ecoleId);
-  const frequence = frequenceDepuisParametre(parametres.frequence);
-  const periode = periodeDepuisParametre(parametres.periode, frequence);
+  const defautFrequence = await frequenceParDefautEcole(session.ecoleId);
+  const frequence = frequenceDepuisParametre(parametres.frequence, defautFrequence);
+  const periode = periodeDepuisParametre(parametres.periode, frequence, 0);
 
   const [dashboard, ecole, impayesPeriode, nbTranches] = await Promise.all([
     getDashboard(session.ecoleId, annee, frequence, periode),
@@ -288,7 +289,7 @@ export default async function PageTableauDeBord({
             <div className="flex items-center gap-2 border-b border-line bg-[#fbf6ea] px-4 py-2 text-[11px] font-medium text-[#7a5010]">
               <LockKeyhole size={12} aria-hidden />
               Comptes profs, saisie en ligne et validation : réservé à PREMIUM
-              40.000F. Les compteurs ci-dessous restent à zéro tant que
+              35.000F. Les compteurs ci-dessous restent à zéro tant que
               l&apos;offre n&apos;est pas activée.
             </div>
           )}
@@ -410,7 +411,9 @@ export default async function PageTableauDeBord({
             <div className="flex flex-wrap items-center justify-between gap-2">
               <p className="text-[10.5px] font-semibold uppercase tracking-[0.14em] text-white/50">
                 {afficheRecettes
-                  ? `Recettes de ${nomPeriode}`
+                  ? periode === 0
+                    ? "Recettes de l'année"
+                    : `Recettes de ${nomPeriode}`
                   : `Encaissé · ${nomPeriode}`}
               </p>
               <span className="rounded-full border border-white/15 px-2.5 py-0.5 text-[10.5px] text-white/55">
@@ -464,14 +467,14 @@ export default async function PageTableauDeBord({
                 </span>
                 <div>
                   <p className="text-[16px] font-medium leading-tight text-white/90">
-                    Totaux financiers — offre PRO
+                    Totaux financiers — offre STANDARD
                   </p>
                   <p className="mt-1 text-[12px] leading-relaxed text-white/50">
-                    Activez PRO pour afficher le total encaissé et le reste à
-                    encaisser de l&apos;année.
+                    Activez STANDARD pour afficher le total encaissé et le reste
+                    à encaisser de l&apos;année.
                   </p>
                   <Link
-                    href="/app/parametres#abonnement"
+                    href="/abonnement"
                     className="mt-2 inline-flex items-center gap-1 text-[11.5px] font-semibold text-[#ffce00] hover:underline"
                   >
                     Voir les offres
@@ -511,13 +514,13 @@ export default async function PageTableauDeBord({
                     <span className="ml-1 text-[10px] font-normal text-white/40">F</span>
                   </>
                 ) : (
-                  <span className="text-[13px] text-white/45">Offre PRO</span>
+                  <span className="text-[13px] text-white/45">Offre STANDARD</span>
                 )}
               </p>
               <p className="mt-1 text-[10px] text-white/40">
                 {peutTotaux
                   ? `${resume.partiels + resume.impayes} élèves concernés`
-                  : "Total restant réservé au PRO"}
+                  : "Total restant réservé au STANDARD"}
               </p>
             </div>
 
@@ -546,7 +549,7 @@ export default async function PageTableauDeBord({
               <p className="mt-1 text-[10px] text-white/40">
                 {peutTotaux
                   ? `${formatF(resume.restant)} à recouvrer`
-                  : "Détail financier réservé au PRO"}
+                  : "Détail financier réservé au STANDARD"}
               </p>
             </div>
           </div>
@@ -687,7 +690,8 @@ export default async function PageTableauDeBord({
                 <tbody>
                   {classes.map((classe) => {
                     const total = Math.max(1, classe.nb_eleves);
-                    const memeFrequence = classe.frequence_paiement === frequence;
+                    const memeFrequence =
+                      classe.frequence_paiement === frequence || periode === 0;
                     return (
                       <tr key={classe.id}>
                         <td>
@@ -848,10 +852,10 @@ export default async function PageTableauDeBord({
                       </a>
                     ) : (
                       <Link
-                        href="/app/parametres#abonnement"
+                        href="/abonnement"
                         className="grid size-8 shrink-0 place-items-center rounded-sm border border-line text-muted transition-colors hover:bg-surface-2"
-                        aria-label="Relance WhatsApp incluse dans l'offre PRO"
-                        title="Relance WhatsApp — offre PRO"
+                        aria-label="Relance WhatsApp incluse dans l'offre STANDARD"
+                        title="Relance WhatsApp — offre STANDARD"
                       >
                         <LockKeyhole size={13} aria-hidden />
                       </Link>
@@ -906,16 +910,16 @@ export default async function PageTableauDeBord({
                 </span>
                 <div>
                   <p className="text-[13px] font-semibold text-ink">
-                    Évolution chiffrée — offre PRO
+                    Évolution chiffrée — offre STANDARD
                   </p>
                   <p className="mx-auto mt-1 max-w-sm text-[11.5px] leading-relaxed text-muted">
                     Le comparatif encaissé / attendu période par période est
-                    inclus dans l&apos;offre PRO. Vos paiements restent
+                    inclus dans l&apos;offre STANDARD. Vos paiements restent
                     enregistrés et réapparaîtront dès l&apos;activation.
                   </p>
                 </div>
                 <LienBouton
-                  href="/app/parametres#abonnement"
+                  href="/abonnement"
                   variante="secondaire"
                   taille="sm"
                 >

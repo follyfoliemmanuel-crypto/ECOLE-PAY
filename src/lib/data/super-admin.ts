@@ -1,5 +1,7 @@
 import { sql, uneLigne } from "../db";
-import type { Offre, StatutEcole } from "../types";
+import { motifLectureSeuleDepuis } from "./abonnement";
+import { offreDepuisPlan } from "../offres";
+import type { MotifLectureSeule, Offre, StatutAbo, StatutEcole } from "../types";
 
 export type EcoleSuperAdmin = {
   id: string;
@@ -10,6 +12,17 @@ export type EcoleSuperAdmin = {
   statut: StatutEcole;
   date_fin_essai: string | null;
   date_fin_abonnement: string | null;
+  /** Abonnement mensuel (table subscriptions). */
+  abo_plan: Offre | null;
+  abo_status: StatutAbo | null;
+  abo_date_debut: string | null;
+  abo_date_fin: string | null;
+  abo_dernier_paiement: string | null;
+  abo_montant: number;
+  abo_mois: number;
+  /** Vrai quand l'école est limitée à la consultation. */
+  lecture_seule: boolean;
+  motif: MotifLectureSeule | null;
   nb_eleves: number;
   nb_classes: number;
   date_creation: string;
@@ -24,11 +37,20 @@ export async function listerEcolesSuperAdmin(
 ): Promise<Page<EcoleSuperAdmin>> {
   const offset = Math.max(0, (page - 1) * parPage);
 
-  const [lignes, total] = await Promise.all([
-    sql<EcoleSuperAdmin>(
+  const [lignesBrutes, total] = await Promise.all([
+    sql<Omit<EcoleSuperAdmin, "lecture_seule" | "motif" | "abo_plan"> & {
+      abo_plan: string | null;
+    }>(
       `select e.id, e.nom, e.telephone, e.email, e.offre, e.statut,
               e.date_fin_essai::text as date_fin_essai,
               e.date_fin_abonnement::text as date_fin_abonnement,
+              s.plan as abo_plan,
+              s.status as abo_status,
+              s.date_debut::text as abo_date_debut,
+              s.date_fin::text as abo_date_fin,
+              s.dernier_paiement::text as abo_dernier_paiement,
+              coalesce(s.montant, 0) as abo_montant,
+              coalesce(s.mois_payes, 0) as abo_mois,
               (select count(*)::int from eleves el
                 where el.ecole_id = e.id
                   and el.annee_scolaire = $1
@@ -37,14 +59,30 @@ export async function listerEcolesSuperAdmin(
                 where c.ecole_id = e.id) as nb_classes,
               to_char(e.date_creation, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as date_creation
          from ecoles e
+         left join subscriptions s on s.school_id = e.id
         order by
-          case e.statut when 'BLOQUE' then 0 when 'ESSAI' then 1 else 2 end,
+          case
+            when s.status = 'blocked' then 0
+            when s.date_fin is not null and current_date > s.date_fin + 5 then 1
+            when e.statut = 'ESSAI' then 2
+            else 3
+          end,
           e.date_creation desc
         limit $2 offset $3`,
       [annee, parPage, offset],
     ),
     uneLigne<{ total: number }>(`select count(*)::int as total from ecoles`),
   ]);
+
+  const lignes = lignesBrutes.map((ligne) => {
+    const motif = motifLectureSeuleDepuis(ligne);
+    return {
+      ...ligne,
+      abo_plan: ligne.abo_plan ? offreDepuisPlan(ligne.abo_plan) : null,
+      lecture_seule: motif !== null,
+      motif,
+    };
+  }) as EcoleSuperAdmin[];
 
   return { lignes, total: total?.total ?? 0 };
 }
@@ -65,13 +103,25 @@ export async function statistiquesEcoles(annee: string): Promise<{
     eleves: number;
   }>(
     `select count(*)::int as total,
-            count(*) filter (where statut = 'ACTIF')::int as actives,
-            count(*) filter (where statut = 'ESSAI')::int as essais,
-            count(*) filter (where statut = 'BLOQUE')::int as bloquees,
+            count(*) filter (
+              where s.status = 'active' and current_date <= s.date_fin + 5
+            )::int as actives,
+            count(*) filter (
+              where e.statut = 'ESSAI'
+                and e.date_fin_essai is not null
+                and current_date <= e.date_fin_essai
+            )::int as essais,
+            count(*) filter (
+              where s.status = 'blocked'
+                 or (s.date_fin is not null and current_date > s.date_fin + 5)
+                 or (e.statut = 'ESSAI' and e.date_fin_essai < current_date)
+                 or (s.id is null and e.statut <> 'ESSAI')
+            )::int as bloquees,
             (select count(*)::int from eleves el
               where el.annee_scolaire = $1
                 and el.statut = 'actif') as eleves
-       from ecoles`,
+       from ecoles e
+       left join subscriptions s on s.school_id = e.id`,
     [annee],
   );
   return {

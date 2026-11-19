@@ -97,7 +97,8 @@ export async function listerPaiements({
         where p.ecole_id = $1
           and f.annee_scolaire = $2
           and (
-            (p.type_frais = 'SCOLARITE'
+            $4::int = 0
+            or (p.type_frais = 'SCOLARITE'
               and p.frequence_paiement = $3
               and p.periode = $4)
             or p.type_frais in ('INSCRIPTION', 'REINSCRIPTION')
@@ -133,7 +134,8 @@ export async function listerPaiements({
         where p.ecole_id = $1
           and f.annee_scolaire = $2
           and (
-            (p.type_frais = 'SCOLARITE'
+            $4::int = 0
+            or (p.type_frais = 'SCOLARITE'
               and p.frequence_paiement = $3
               and p.periode = $4)
             or p.type_frais in ('INSCRIPTION', 'REINSCRIPTION')
@@ -171,8 +173,10 @@ export async function totalEncaissePeriode(
       where p.ecole_id = $1
         and f.annee_scolaire = $2
         and p.type_frais = 'SCOLARITE'
-        and p.frequence_paiement = $3
-        and p.periode = $4
+        and (
+          $4::int = 0
+          or (p.frequence_paiement = $3 and p.periode = $4)
+        )
         and p.annule = false`,
     [ecoleId, annee, frequence, periode],
   );

@@ -11,7 +11,7 @@ import { sql, uneLigne } from "./db";
  */
 
 export const MESSAGE_ESSAI_REFUSE =
-  "Vous avez déjà bénéficié de votre essai gratuit de 30 jours pour cette école, veuillez payer 15.000F pour STARTER, 25.000F pour PRO ou 40.000F pour PREMIUM au +228 70309744 ou contactez follyfoliemmanuel@gmail.com.";
+  "Vous avez déjà bénéficié de votre essai gratuit de 30 jours pour cette école, veuillez payer 15.000F par mois pour STARTER, 25.000F pour STANDARD ou 35.000F pour PREMIUM au +228 70309744 ou contactez follyfoliemmanuel@gmail.com.";
 
 export const MESSAGE_CONNEXION = "Email ou mot de passe incorrect.";
 

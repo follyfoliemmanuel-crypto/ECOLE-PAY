@@ -62,7 +62,7 @@ export function bornesTrimestre(
   if (trimestre === 2) {
     return { debut: `${debut + 1}-01-01`, fin: `${debut + 1}-03-31` };
   }
-  return { debut: `${debut + 1}-04-01`, fin: `${debut + 1}-06-30` };
+  return { debut: `${debut + 1}-04-01`, fin: `${debut + 1}-08-31` };
 }
 
 export function libelleTrimestreRapport(trimestre: number): string {

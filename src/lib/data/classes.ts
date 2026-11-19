@@ -87,8 +87,7 @@ export type ClasseStats = Classe & {
 
 /**
  * Classes + situation de la scolarité pour une fréquence et une période.
- * Les classes d'une autre fréquence restent listées avec des compteurs à zéro :
- * l'interface affiche « — » plutôt qu'un faux impayé.
+ * Si période = 0, calcule le bilan complet de toutes les périodes / tranches.
  */
 export async function listerClassesAvecStats(
   ecoleId: string,
@@ -102,9 +101,40 @@ export async function listerClassesAvecStats(
             c.type_fin, c.examen, c.classe_suivante_id,
             cs.nom as classe_suivante_nom,
             count(distinct e.id)::int as nb_eleves,
-            count(f.id) filter (where f.statut = 'PAYE')::int as payes,
-            count(f.id) filter (where f.statut = 'PARTIEL')::int as partiels,
-            count(f.id) filter (where f.statut = 'NON_PAYE')::int as impayes,
+            count(distinct e.id) filter (
+              where not exists (
+                select 1 from frais f2
+                 where f2.eleve_id = e.id
+                   and f2.ecole_id = c.ecole_id
+                   and f2.annee_scolaire = $2
+                   and f2.type_frais = 'SCOLARITE'
+                   and ($4::int = 0 or f2.periode = $4)
+                   and f2.reste > 0
+              )
+            )::int as payes,
+            count(distinct e.id) filter (
+              where exists (
+                select 1 from frais f2
+                 where f2.eleve_id = e.id
+                   and f2.ecole_id = c.ecole_id
+                   and f2.annee_scolaire = $2
+                   and f2.type_frais = 'SCOLARITE'
+                   and ($4::int = 0 or f2.periode = $4)
+                   and f2.montant_paye > 0
+                   and f2.reste > 0
+              )
+            )::int as partiels,
+            count(distinct e.id) filter (
+              where not exists (
+                select 1 from frais f2
+                 where f2.eleve_id = e.id
+                   and f2.ecole_id = c.ecole_id
+                   and f2.annee_scolaire = $2
+                   and f2.type_frais = 'SCOLARITE'
+                   and ($4::int = 0 or f2.periode = $4)
+                   and f2.montant_paye > 0
+              )
+            )::int as impayes,
             coalesce(sum(f.montant_du), 0)::int as attendu,
             coalesce(sum(f.montant_paye), 0)::int as encaisse,
             coalesce(sum(f.reste), 0)::int as restant
@@ -120,8 +150,8 @@ export async function listerClassesAvecStats(
         and f.ecole_id = c.ecole_id
         and f.annee_scolaire = $2
         and f.type_frais = 'SCOLARITE'
-        and f.frequence_paiement = $3
-        and f.periode = $4
+        and f.frequence_paiement = c.frequence_paiement
+        and ($4::int = 0 or (f.frequence_paiement = $3 and f.periode = $4))
       where c.ecole_id = $1
       group by c.id, cs.nom
       order by c.ordre, c.nom`,
@@ -139,4 +169,23 @@ export async function nombreTranchesMax(ecoleId: string): Promise<number> {
     [ecoleId],
   );
   return Math.max(1, ligne?.maximum ?? 1);
+}
+
+/**
+ * Fréquence prédominante des classes de l'école.
+ * Évite d'afficher « Mensuel » avec des zéros si l'école utilise des tranches.
+ */
+export async function frequenceParDefautEcole(
+  ecoleId: string,
+): Promise<Frequence> {
+  const ligne = await uneLigne<{ frequence_paiement: Frequence }>(
+    `select c.frequence_paiement, count(*)::int as nb
+       from classes c
+      where c.ecole_id = $1
+      group by c.frequence_paiement
+      order by nb desc
+      limit 1`,
+    [ecoleId],
+  );
+  return ligne?.frequence_paiement ?? "MENSUEL";
 }

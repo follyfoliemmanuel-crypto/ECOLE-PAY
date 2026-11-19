@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { accesAutorise } from "@/lib/activation";
 import { anneeActive } from "@/lib/data/annees";
 import { rechercherEleves } from "@/lib/data/eleves";
 import { consommerLimite, infosRequete } from "@/lib/securite";
@@ -21,12 +20,9 @@ export async function GET(requete: Request) {
       { status: 401, headers: ENTETES_PRIVES },
     );
   }
-  if (!accesAutorise(session.ecole)) {
-    return NextResponse.json(
-      { error: "Compte bloqué" },
-      { status: 403, headers: ENTETES_PRIVES },
-    );
-  }
+
+  // Une école en lecture seule garde la consultation : la recherche d'élèves
+  // reste donc autorisée, seules les écritures sont refusées.
 
   // Chaque frappe de la secrétaire déclenche une requête : la limite reste
   // large, mais elle coupe un balayage automatisé de l'annuaire.

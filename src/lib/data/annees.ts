@@ -662,17 +662,18 @@ export async function resumeArchive(
       encaisse: number;
       impaye: number;
     }>(
-      `select i.classe_id,
+      `select coalesce(i.classe_id, e.classe_id) as classe_id,
               coalesce(sum(f.montant_du), 0)::int as attendu,
               coalesce(sum(f.montant_paye), 0)::int as encaisse,
               coalesce(sum(f.reste), 0)::int as impaye
          from frais f
-         join inscriptions i
+         join eleves e on e.id = f.eleve_id and e.ecole_id = f.ecole_id
+         left join inscriptions i
            on i.eleve_id = f.eleve_id
           and i.annee_scolaire = f.annee_scolaire
           and i.ecole_id = f.ecole_id
         where f.ecole_id = $1 and f.annee_scolaire = $2
-        group by i.classe_id`,
+        group by coalesce(i.classe_id, e.classe_id)`,
       [ecoleId, annee],
     ),
     sql<{

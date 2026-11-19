@@ -41,10 +41,20 @@ function numeroPage(valeur?: string): number {
 function BadgeStatutEcole({
   statut,
   expiree,
+  lectureSeule,
 }: {
   statut: StatutEcole;
   expiree: boolean;
+  lectureSeule: boolean;
 }) {
+  if (lectureSeule || statut === "BLOQUE") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-full border border-impaye/20 bg-impaye-soft px-2 py-0.5 text-[11px] font-semibold leading-5 text-impaye">
+        <span className="size-1.5 rounded-full bg-impaye" aria-hidden />
+        Lecture seule
+      </span>
+    );
+  }
   if (statut === "ACTIF") {
     return <Badge ton="succes">Active</Badge>;
   }
@@ -58,7 +68,7 @@ function BadgeStatutEcole({
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-impaye/20 bg-impaye-soft px-2 py-0.5 text-[11px] font-semibold leading-5 text-impaye">
       <span className="size-1.5 rounded-full bg-impaye" aria-hidden />
-      Bloquée
+      Lecture seule
     </span>
   );
 }
@@ -205,9 +215,10 @@ export default async function PageSuperAdmin({
               <tbody>
                 {ecoles.map((ecole) => {
                   const fin =
-                    ecole.statut === "ACTIF"
-                      ? ecole.date_fin_abonnement
-                      : ecole.date_fin_essai;
+                    ecole.abo_date_fin ??
+                    (ecole.statut === "ESSAI"
+                      ? ecole.date_fin_essai
+                      : ecole.date_fin_abonnement);
                   const expiree = fin !== null && fin < aujourdhui;
 
                   return (
@@ -236,21 +247,28 @@ export default async function PageSuperAdmin({
                         <span className="block font-semibold text-ink">
                           {ecole.statut === "ESSAI"
                             ? "PREMIUM (essai)"
-                            : LIBELLES_OFFRE[ecole.offre]}
+                            : (ecole.abo_plan ?? LIBELLES_OFFRE[ecole.offre])}
                         </span>
                         <span className="chiffre block text-[10.5px] text-muted">
                           {ecole.statut === "ESSAI"
                             ? "Toutes fonctions offertes"
-                            : `${OFFRES[ecole.offre].prix.toLocaleString("fr-FR").replace(/\u202f/g, " ")} F / mois`}
+                            : `${OFFRES[ecole.abo_plan ?? ecole.offre].prix.toLocaleString("fr-FR").replace(/\u202f/g, " ")} F / mois`}
                         </span>
                       </td>
                       <td>
                         <BadgeStatutEcole
                           statut={ecole.statut}
                           expiree={expiree}
+                          lectureSeule={ecole.lecture_seule}
                         />
                         <span className="mt-1 block text-[10px] text-muted">
-                          {LIBELLES_STATUT_ECOLE[ecole.statut]}
+                          {ecole.lecture_seule
+                            ? (ecole.motif === "ABONNEMENT_TERMINE"
+                                ? "Paiement du mois en attente"
+                                : ecole.motif === "ESSAI_TERMINE"
+                                  ? "Essai terminé"
+                                  : "Blocage manuel")
+                            : LIBELLES_STATUT_ECOLE[ecole.statut]}
                         </span>
                       </td>
                       <td>
@@ -268,9 +286,11 @@ export default async function PageSuperAdmin({
                           <span className="text-[11.5px] text-muted">—</span>
                         )}
                         <span className="mt-0.5 block text-[10px] text-muted">
-                          {ecole.statut === "ACTIF"
-                            ? "Abonnement"
-                            : "Essai"}
+                          {ecole.abo_dernier_paiement
+                            ? `Payé le ${formatDate(ecole.abo_dernier_paiement)}`
+                            : ecole.statut === "ESSAI"
+                              ? "Essai gratuit"
+                              : "Aucun paiement"}
                         </span>
                       </td>
                       <td>
@@ -278,7 +298,9 @@ export default async function PageSuperAdmin({
                           ecoleId={ecole.id}
                           nom={ecole.nom}
                           statut={ecole.statut}
-                          offre={ecole.offre}
+                          offre={ecole.abo_plan ?? ecole.offre}
+                          lectureSeule={ecole.lecture_seule}
+                          dateFin={ecole.abo_date_fin}
                         />
                       </td>
                     </tr>
@@ -498,9 +520,9 @@ export default async function PageSuperAdmin({
         l&apos;ancienne. BLOQUER coupe l&apos;accès au tableau de bord, aux élèves
         et aux paiements sans supprimer aucune donnée. Une activation débloque
         aussi une école bloquée. La bascule 1 CLIC change seulement le niveau de
-        fonctions, sans toucher à la date de fin : le retour à STARTER ou PRO
-        verrouille immédiatement les comptes profs, le portail parent et
-        l&apos;envoi WhatsApp, côté serveur et sans reconnexion. Élèves,
+        fonctions, sans toucher à la date de fin : le retour à STARTER ou
+        STANDARD verrouille immédiatement les comptes profs, le portail parent
+        et l&apos;envoi WhatsApp, côté serveur et sans reconnexion. Élèves,
         paiements, notes et reçus sont toujours conservés.
       </p>
       <p className="mt-2 text-[11.5px] leading-relaxed text-muted">

@@ -174,7 +174,7 @@ export default async function PageProf({
           description="La saisie des notes par les professeurs est réservée à l'offre PREMIUM."
         />
         <Alerte ton="erreur">
-          Cette fonctionnalité est réservée à l&apos;offre PREMIUM 40.000F.
+          Cette fonctionnalité est réservée à l&apos;offre PREMIUM 35.000F.
           Demandez au directeur de vérifier l&apos;abonnement SCHOOL PAY de{" "}
           {session.ecole.nom}.
         </Alerte>

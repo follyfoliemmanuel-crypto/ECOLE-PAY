@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { sql, transaction, uneLigne } from "../db";
-import { getSession } from "../auth";
+import { getSession, refusEcriture } from "../auth";
 import { anneeActive } from "../data/annees";
 import { normaliserTelephone } from "../format";
 import { compterElevesActifs, limitesOffre } from "../data/ecole";
@@ -45,7 +45,7 @@ function validerChamps(donnees: FormData): {
   if (!telephone) {
     return {
       error:
-        "Le numéro WhatsApp du parent doit être un numéro togolais à 8 chiffres (90, 91, 92, 93, 70 ou 99).",
+        "Le numéro WhatsApp du parent doit être un numéro togolais à 8 chiffres (70-73, 78-79, 90-93, 96-99).",
     };
   }
 
@@ -105,6 +105,8 @@ export async function creerEleve(
 ): Promise<ResultatAction> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
 
   const validation = validerChamps(donnees);
   if (!validation.valeurs) return { error: validation.error };
@@ -167,6 +169,8 @@ export async function modifierEleve(
 ): Promise<ResultatAction> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
 
   const id = texte(donnees, "id");
   if (!estUuid(id)) return { error: "Élève introuvable." };
@@ -255,6 +259,8 @@ export async function importerEleves(
 ): Promise<ResultatImport> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
 
   if (!Array.isArray(eleves) || eleves.length === 0) {
     return { error: "Aucun élève à importer." };
@@ -318,7 +324,7 @@ export async function importerEleves(
     }
     if (!telephone) {
       return {
-        error: `Ligne ${i + 1} : Le numéro du parent de ${prenom} ${nom} (${e.telephoneParent}) n'est pas un numéro togolais valide à 8 chiffres (90, 91, 92, 93, 70 ou 99).`,
+        error: `Ligne ${i + 1} : Le numéro du parent de ${prenom} ${nom} (${e.telephoneParent}) n'est pas un numéro togolais valide à 8 chiffres (70-73, 78-79, 90-93, 96-99).`,
       };
     }
 

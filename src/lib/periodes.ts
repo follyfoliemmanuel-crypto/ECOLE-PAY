@@ -110,31 +110,52 @@ export function periodesDe(
   frequence: Frequence,
   annee: string,
   nbTranches = 3,
+  inclureToutes = true,
 ): Periode[] {
+  const base: Periode[] = [];
+  if (inclureToutes) {
+    base.push({
+      numero: 0,
+      court: frequence === "TRANCHES" ? "Toutes" : "Toutes",
+      long:
+        frequence === "TRANCHES"
+          ? "Toutes les tranches"
+          : frequence === "ANNUEL"
+            ? `Toute l'année (${libelleAnnee(annee)})`
+            : "Toutes les périodes (global)",
+    });
+  }
+
   if (frequence === "TRANCHES") {
     const total = Math.max(1, Math.min(20, nbTranches));
-    return Array.from({ length: total }, (_, index) => ({
-      numero: index + 1,
-      court: `Tr. ${index + 1}`,
-      long: `Tranche ${index + 1}`,
-    }));
+    for (let index = 0; index < total; index++) {
+      base.push({
+        numero: index + 1,
+        court: `Tr. ${index + 1}`,
+        long: `Tranche ${index + 1}`,
+      });
+    }
+    return base;
   }
 
   if (frequence === "ANNUEL") {
-    return [
-      {
+    if (!inclureToutes) {
+      base.push({
         numero: 1,
         court: "Année",
         long: `Année ${libelleAnnee(annee)}`,
-      },
-    ];
+      });
+    }
+    return base;
   }
 
-  return MOIS_SCOLAIRES.map((mois) => ({
-    numero: mois.numero,
-    court: mois.court,
-    long: mois.long,
-  }));
+  return base.concat(
+    MOIS_SCOLAIRES.map((mois) => ({
+      numero: mois.numero,
+      court: mois.court,
+      long: mois.long,
+    })),
+  );
 }
 
 /** Libellé d'une période de scolarité. */
@@ -145,7 +166,16 @@ export function libellePeriode(
   court = false,
   nbTranches = 3,
 ): string {
-  const trouvee = periodesDe(frequence, annee, nbTranches).find(
+  if (periode === 0) {
+    if (frequence === "TRANCHES") {
+      return court ? "Toutes" : "Toutes les tranches";
+    }
+    if (frequence === "ANNUEL") {
+      return court ? "Année" : `Année ${libelleAnnee(annee)}`;
+    }
+    return court ? "Toutes" : "Toutes les périodes";
+  }
+  const trouvee = periodesDe(frequence, annee, nbTranches, false).find(
     (p) => p.numero === periode,
   );
   if (!trouvee) return frequence === "TRANCHES" ? `Tranche ${periode}` : "";
@@ -169,13 +199,22 @@ export function periodeCourante(
 export function periodeDepuisParametre(
   valeur: string | undefined,
   frequence: Frequence,
-  defaut: number = periodeCourante(frequence),
+  defaut: number = 0,
   nbTranches = 20,
 ): number {
-  const n = Number.parseInt(valeur ?? "", 10);
+  if (
+    valeur === undefined ||
+    valeur === "" ||
+    valeur === "0" ||
+    valeur === "toutes" ||
+    valeur === "tous"
+  ) {
+    return defaut;
+  }
+  const n = Number.parseInt(valeur, 10);
   const maximum =
     frequence === "TRANCHES" ? Math.max(1, nbTranches) : nombrePeriodes(frequence);
-  if (!Number.isFinite(n) || n < 1 || n > maximum) {
+  if (!Number.isFinite(n) || n < 0 || n > maximum) {
     return defaut;
   }
   return n;

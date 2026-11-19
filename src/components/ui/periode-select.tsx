@@ -39,10 +39,7 @@ export function PeriodeSelect({
     const suivants = new URLSearchParams(parametres.toString());
     suivants.set(cle, valeur);
     if (cle === "frequence") {
-      suivants.set(
-        "periode",
-        String(periodeCourante(valeur as Frequence)),
-      );
+      suivants.set("periode", "0");
     }
     suivants.delete("page");
     demarrer(() => router.push(`${pathname}?${suivants.toString()}`));

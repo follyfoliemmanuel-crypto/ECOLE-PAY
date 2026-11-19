@@ -143,7 +143,7 @@ export default async function PageNotes({
                     ? ` · date limite : ${formatDate(echeance.date_limite)}`
                     : " · aucune date limite fixée"
                 }`
-              : "Comptes professeurs, saisie en ligne et validation : réservé à PREMIUM 40.000F. Vous pouvez toujours saisir les notes manuellement ci-dessous."}
+              : "Comptes professeurs, saisie en ligne et validation : réservé à PREMIUM 35.000F. Vous pouvez toujours saisir les notes manuellement ci-dessous."}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
-import { accesAutorise } from "@/lib/activation";
 import { anneeActive } from "@/lib/data/annees";
 import { getElevePaiement } from "@/lib/data/eleves";
 import {
@@ -23,12 +22,9 @@ export async function GET(
       { status: 401, headers: ENTETES_PRIVES },
     );
   }
-  if (!accesAutorise(session.ecole)) {
-    return NextResponse.json(
-      { error: "Compte bloqué" },
-      { status: 403, headers: ENTETES_PRIVES },
-    );
-  }
+
+  // Lecture seule : l'école peut toujours consulter le détail des frais d'un
+  // élève. Seul l'enregistrement d'un paiement est refusé par l'action serveur.
 
   const brut = await params;
   const valide = schemaUuid.safeParse(brut.id);

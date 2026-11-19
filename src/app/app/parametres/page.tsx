@@ -67,7 +67,7 @@ const FORMULES: {
   eleves: string;
   utilisateurs: string;
   classes: string;
-}[] = (["STARTER", "PRO", "PREMIUM"] as Offre[]).map((code) => {
+}[] = (["STARTER", "STANDARD", "PREMIUM"] as Offre[]).map((code) => {
   const info = OFFRES[code];
   return {
     code,
@@ -247,7 +247,7 @@ export default async function PageParametres() {
                 <p className="mb-3 mt-0.5 text-[11.5px] text-muted">
                   {equipeDisponible
                     ? `Offre ${offre} · ${nbUtilisateurs} / ${limite.utilisateurs ?? "∞"} compte${nbUtilisateurs > 1 ? "s" : ""} actif${nbUtilisateurs > 1 ? "s" : ""}. ${equipePleine ? "Limite atteinte : passez à une offre supérieure pour ajouter un compte." : "Choisissez le rôle : comptable ou secrétaire."}`
-                    : "L'offre STARTER comprend un seul utilisateur (le directeur). Passez à PRO pour ajouter un comptable et une secrétaire."}
+                    : "L'offre STARTER comprend un seul utilisateur (le directeur). Passez à STANDARD pour ajouter un comptable et une secrétaire."}
                 </p>
                 {equipeDisponible && !equipePleine ? (
                   <FormulaireUtilisateur />
@@ -391,7 +391,7 @@ export default async function PageParametres() {
                       {formatFCFA(OFFRES.PREMIUM.prix)}
                     </p>
                     <p className="mt-0.5 max-w-xl text-[11.5px] leading-relaxed text-[#7a5010]/85">
-                      STARTER et PRO gardent les élèves, les classes, les
+                      STARTER et STANDARD gardent les élèves, les classes, les
                       paiements et les notes saisies à la main. Les comptes
                       professeurs, le portail parent, le QR code et l&apos;envoi
                       des bulletins sur WhatsApp restent verrouillés côté
@@ -461,9 +461,9 @@ export default async function PageParametres() {
               <p className="mt-3 text-[11px] leading-relaxed text-muted">
                 Pendant les 30 jours d&apos;essai, toutes les fonctions PREMIUM
                 sont actives. Après l&apos;essai, l&apos;offre choisie est
-                appliquée immédiatement par le super admin. STARTER et PRO ne
-                donnent jamais accès aux comptes profs, au portail parent ni à
-                l&apos;envoi WhatsApp des bulletins. Un changement d&apos;offre
+                appliquée immédiatement par le super admin. STARTER et STANDARD
+                ne donnent jamais accès aux comptes profs, au portail parent ni
+                à l&apos;envoi WhatsApp des bulletins. Un changement d&apos;offre
                 ne supprime jamais les élèves, paiements, reçus ou notes : les
                 fonctions en trop sont simplement verrouillées.
               </p>

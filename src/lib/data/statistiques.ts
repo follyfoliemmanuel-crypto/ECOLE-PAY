@@ -119,8 +119,10 @@ export async function getStatistiques(
         where f.ecole_id = $1
           and f.annee_scolaire = $2
           and f.type_frais = 'SCOLARITE'
-          and f.frequence_paiement = $3
-          and f.periode = $4
+          and (
+            $4::int = 0
+            or (f.frequence_paiement = $3 and f.periode = $4)
+          )
           and e.statut = 'actif'
           and e.annee_scolaire = $2`,
       [ecoleId, annee, frequence, periode],
@@ -151,7 +153,8 @@ export async function getStatistiques(
           and f.annee_scolaire = $2
           and p.annule = false
           and (
-            (p.type_frais = 'SCOLARITE'
+            ($4::int = 0 and p.type_frais = 'SCOLARITE')
+            or (p.type_frais = 'SCOLARITE'
               and p.frequence_paiement = $3
               and p.periode = $4)
             or p.type_frais in ('INSCRIPTION', 'REINSCRIPTION')
@@ -204,7 +207,8 @@ export async function getStatistiques(
           and f.statut <> 'PAYE'
           and e.statut = 'actif'
           and (
-            (f.type_frais = 'SCOLARITE'
+            ($4::int = 0 and f.type_frais = 'SCOLARITE')
+            or (f.type_frais = 'SCOLARITE'
               and f.frequence_paiement = $3
               and f.periode = $4)
             or f.type_frais in ('INSCRIPTION', 'REINSCRIPTION')

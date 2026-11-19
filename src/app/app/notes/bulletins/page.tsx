@@ -178,7 +178,7 @@ export default async function PageBulletins({
               <p className="mt-1 max-w-2xl text-[11.5px] leading-relaxed text-muted">
                 La publication sur le portail parent et l&apos;envoi
                 automatique du bulletin PDF sur WhatsApp sont réservés à
-                l&apos;offre PREMIUM 40.000F. Les bulletins restent imprimables
+                l&apos;offre PREMIUM 35.000F. Les bulletins restent imprimables
                 ci-dessous.
               </p>
             </div>

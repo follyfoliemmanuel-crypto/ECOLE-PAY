@@ -2,16 +2,17 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Ban, CalendarPlus, Loader2, ShieldCheck } from "lucide-react";
+import { Ban, CalendarPlus, Loader2, ShieldCheck, Unlock } from "lucide-react";
 import {
-  activerPro1Mois,
-  activerPro3Mois,
   activerPremium1Mois,
-  activerPremium3Mois,
+  activerPremiumAnnee,
+  activerStandard1Mois,
+  activerStandardAnnee,
   activerStarter1Mois,
-  activerStarter3Mois,
+  activerStarterAnnee,
   bloquerEcole,
   changerOffre,
+  debloquerEcole,
 } from "@/lib/actions/super-admin";
 import { OFFRES } from "@/lib/offres";
 import type { Offre } from "@/lib/types";
@@ -20,28 +21,37 @@ import { Dialogue } from "@/components/ui/dialogue";
 import { Alerte } from "@/components/ui/empty-state";
 import { cx } from "@/lib/cx";
 
-const ACTIONS: Record<
-  Offre,
-  { un: (id: string) => Promise<{ error?: string; success?: string }>; trois: (id: string) => Promise<{ error?: string; success?: string }> }
-> = {
-  STARTER: { un: activerStarter1Mois, trois: activerStarter3Mois },
-  PRO: { un: activerPro1Mois, trois: activerPro3Mois },
-  PREMIUM: { un: activerPremium1Mois, trois: activerPremium3Mois },
+type ActionPaiement = (
+  id: string,
+) => Promise<{ error?: string; success?: string }>;
+
+const ACTIONS: Record<Offre, { mois: ActionPaiement; annee: ActionPaiement }> = {
+  STARTER: { mois: activerStarter1Mois, annee: activerStarterAnnee },
+  STANDARD: { mois: activerStandard1Mois, annee: activerStandardAnnee },
+  PREMIUM: { mois: activerPremium1Mois, annee: activerPremiumAnnee },
 };
 
-const ORDRES: Offre[] = ["STARTER", "PRO", "PREMIUM"];
+const ORDRES: Offre[] = ["STARTER", "STANDARD", "PREMIUM"];
 
-/** Les 6 activations + le blocage, réservés au super admin. */
+function fcfa(valeur: number): string {
+  return `${valeur.toLocaleString("fr-FR").replace(/\u202f/g, " ")} F`;
+}
+
+/** Encaissement mensuel/annuel, bascule d'offre et blocage — super admin. */
 export function BoutonsEcole({
   ecoleId,
   nom,
   statut,
   offre,
+  lectureSeule,
+  dateFin,
 }: {
   ecoleId: string;
   nom: string;
   statut: "ESSAI" | "ACTIF" | "BLOQUE";
   offre: Offre;
+  lectureSeule: boolean;
+  dateFin: string | null;
 }) {
   const router = useRouter();
   const [enCours, setEnCours] = useState<string | null>(null);
@@ -49,15 +59,12 @@ export function BoutonsEcole({
   const [succes, setSucces] = useState<string>();
   const [blocageOuvert, setBlocageOuvert] = useState(false);
 
-  async function activer(cible: Offre, mois: 1 | 3) {
+  async function encaisser(cible: Offre, duree: "mois" | "annee") {
     setErreur(undefined);
     setSucces(undefined);
-    setEnCours(`${cible}-${mois}`);
+    setEnCours(`${cible}-${duree}`);
 
-    const resultat =
-      mois === 1
-        ? await ACTIONS[cible].un(ecoleId)
-        : await ACTIONS[cible].trois(ecoleId);
+    const resultat = await ACTIONS[cible][duree](ecoleId);
 
     setEnCours(null);
     if (resultat.error) {
@@ -101,16 +108,32 @@ export function BoutonsEcole({
     router.refresh();
   }
 
+  async function debloquer() {
+    setErreur(undefined);
+    setSucces(undefined);
+    setEnCours("debloquer");
+
+    const resultat = await debloquerEcole(ecoleId);
+
+    setEnCours(null);
+    if (resultat.error) {
+      setErreur(resultat.error);
+      return;
+    }
+    setSucces(resultat.success);
+    router.refresh();
+  }
+
   const occupe = enCours !== null;
 
   return (
-    <div className="min-w-[290px]">
+    <div className="min-w-[300px]">
       <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted">
         Basculer l&apos;offre · 1 clic
       </p>
       <div className="grid grid-cols-3 gap-1 rounded-sm border border-line bg-surface-2 p-1">
         {ORDRES.map((cible) => {
-          const actif = statut === "ACTIF" && offre === cible;
+          const actif = !lectureSeule && offre === cible;
           return (
             <button
               key={cible}
@@ -121,7 +144,7 @@ export function BoutonsEcole({
               title={
                 actif
                   ? `L'école est déjà en ${cible}`
-                  : `Passer immédiatement en ${cible} (${OFFRES[cible].prix.toLocaleString("fr-FR")} F / mois)`
+                  : `Passer immédiatement en ${cible} (${fcfa(OFFRES[cible].prix)} / mois)`
               }
               className={cx(
                 "inline-flex h-8 items-center justify-center gap-1 rounded-sm border text-[10px] font-bold uppercase tracking-[0.06em] transition-colors",
@@ -140,24 +163,23 @@ export function BoutonsEcole({
         })}
       </div>
       <p className="mb-2.5 mt-1 text-[9.5px] leading-tight text-muted">
-        Effet immédiat, sans reconnexion. Ne change pas la date de fin
-        d&apos;abonnement.
+        Effet immédiat, sans reconnexion. Ne change ni la date de fin ni le
+        statut de paiement.
       </p>
 
       <p className="mb-1 text-[9px] font-semibold uppercase tracking-[0.08em] text-muted">
-        Activer avec une durée
+        Encaisser un paiement
       </p>
       <div className="space-y-1.5">
         {ORDRES.map((cible) => {
-          const actuelle =
-            statut !== "ESSAI" && offre === cible && statut === "ACTIF";
+          const actuelle = !lectureSeule && offre === cible && statut !== "ESSAI";
           return (
             <div key={cible} className="flex items-center gap-1.5">
               <span
                 className={`w-[62px] shrink-0 text-[9.5px] font-semibold uppercase tracking-[0.06em] ${
                   actuelle ? "text-paye" : "text-muted"
                 }`}
-                title={`${OFFRES[cible].prix.toLocaleString("fr-FR")} F / mois`}
+                title={`${fcfa(OFFRES[cible].prix)} / mois`}
               >
                 {cible}
                 {actuelle ? " ✓" : ""}
@@ -167,11 +189,11 @@ export function BoutonsEcole({
                 taille="sm"
                 variante={actuelle ? "succes" : "secondaire"}
                 disabled={occupe}
-                onClick={() => activer(cible, 1)}
-                title={`Activer ${cible} 1 mois (${OFFRES[cible].prix.toLocaleString("fr-FR")} F)`}
+                onClick={() => encaisser(cible, "mois")}
+                title={`Encaisser 1 mois de ${cible} (${fcfa(OFFRES[cible].prix)})`}
                 className="flex-1"
               >
-                {enCours === `${cible}-1` ? (
+                {enCours === `${cible}-mois` ? (
                   <Loader2 size={12} className="animate-spin" aria-hidden />
                 ) : (
                   <ShieldCheck size={12} aria-hidden />
@@ -183,39 +205,58 @@ export function BoutonsEcole({
                 taille="sm"
                 variante="fantome"
                 disabled={occupe}
-                onClick={() => activer(cible, 3)}
-                title={`Activer ${cible} 3 mois`}
+                onClick={() => encaisser(cible, "annee")}
+                title={`Encaisser l'année scolaire : 9 mois payés = 12 mois d'accès (${fcfa(OFFRES[cible].prixAnnuel)})`}
                 className="flex-1"
               >
-                {enCours === `${cible}-3` ? (
+                {enCours === `${cible}-annee` ? (
                   <Loader2 size={12} className="animate-spin" aria-hidden />
                 ) : (
                   <CalendarPlus size={12} aria-hidden />
                 )}
-                3 mois
+                Année
               </Bouton>
             </div>
           );
         })}
       </div>
 
-      {statut !== "BLOQUE" ? (
+      <p className="mt-2 text-[9.5px] leading-tight text-muted">
+        Année scolaire : 9 mois payés, 12 mois d&apos;accès. Le paiement part de
+        la fin de la période en cours.
+        {dateFin ? ` Fin actuelle : ${dateFin}.` : ""}
+      </p>
+
+      {lectureSeule || statut === "BLOQUE" ? (
+        <Bouton
+          type="button"
+          taille="sm"
+          variante="secondaire"
+          disabled={occupe}
+          onClick={debloquer}
+          title="Rétablir les modifications sans encaisser de paiement"
+          className="mt-2 w-full"
+        >
+          {enCours === "debloquer" ? (
+            <Loader2 size={12} className="animate-spin" aria-hidden />
+          ) : (
+            <Unlock size={12} aria-hidden />
+          )}
+          Débloquer (lecture seule)
+        </Bouton>
+      ) : (
         <Bouton
           type="button"
           taille="sm"
           variante="danger"
           disabled={occupe}
           onClick={() => setBlocageOuvert(true)}
-          title="Couper immédiatement l'accès à l'application"
+          title="Passer immédiatement le compte en lecture seule"
           className="mt-2 w-full"
         >
           <Ban size={12} aria-hidden />
           Bloquer
         </Bouton>
-      ) : (
-        <p className="mt-2 text-[10.5px] font-medium text-impaye">
-          École bloquée — activez une offre pour la rouvrir.
-        </p>
       )}
 
       {erreur && (
@@ -232,8 +273,8 @@ export function BoutonsEcole({
       <Dialogue
         ouvert={blocageOuvert}
         onFermer={() => setBlocageOuvert(false)}
-        titre={`Bloquer ${nom} ?`}
-        description="L'école ne pourra plus accéder au tableau de bord, aux élèves ni aux paiements. Vous pourrez la réactiver à tout moment : aucune donnée n'est supprimée."
+        titre={`Passer ${nom} en lecture seule ?`}
+        description="Le directeur pourra encore consulter ses élèves, paiements et notes, mais plus rien modifier. Aucune donnée n'est supprimée : un paiement encaissé rétablit immédiatement l'accès complet."
       >
         <div className="space-y-4">
           {erreur && <Alerte>{erreur}</Alerte>}

@@ -36,6 +36,7 @@ import {
   type EleveOption,
   type ElevePaiement,
   type FraisPeriode,
+  type Frequence,
   type ModePaiement,
   type ResultatPaiement,
 } from "@/lib/types";
@@ -202,7 +203,40 @@ export function FormulairePaiement({
     setRecherche("");
   }
 
-  const echeance = eleve?.frais.find((frais) => frais.id === fraisChoisi) ?? null;
+  const scolaritesDues = useMemo(
+    () => eleve?.frais.filter((f) => f.type_frais === "SCOLARITE" && f.reste > 0) ?? [],
+    [eleve],
+  );
+  const totalScolariteRestant = useMemo(
+    () => scolaritesDues.reduce((somme, f) => somme + f.reste, 0),
+    [scolaritesDues],
+  );
+
+  const echeance = useMemo(() => {
+    if (!eleve) return null;
+    if (fraisChoisi === "TOUTES_TRANCHES") {
+      const premier = scolaritesDues[0];
+      return {
+        id: "TOUTES_TRANCHES",
+        eleve_id: eleve.id,
+        annee_scolaire: annee,
+        type_frais: "SCOLARITE" as const,
+        frequence_paiement: premier?.frequence_paiement ?? ("TRANCHES" as Frequence),
+        periode: 0,
+        libelle:
+          premier?.frequence_paiement === "TRANCHES"
+            ? "Toutes les tranches"
+            : "Toute la scolarité",
+        montant_du: scolaritesDues.reduce((s, f) => s + f.montant_du, 0),
+        montant_paye: scolaritesDues.reduce((s, f) => s + f.montant_paye, 0),
+        reste: totalScolariteRestant,
+        statut: "NON_PAYE" as const,
+        tranche_id: null,
+      };
+    }
+    return eleve.frais.find((frais) => frais.id === fraisChoisi) ?? null;
+  }, [eleve, fraisChoisi, scolaritesDues, totalScolariteRestant, annee]);
+
   const montantNombre = Number.parseInt(montant || "0", 10) || 0;
   const depasse = Boolean(echeance && montantNombre > echeance.reste);
   const valide = Boolean(
@@ -611,6 +645,39 @@ export function FormulairePaiement({
               <div>
                 <p className="label">Échéance concernée</p>
                 <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3 sm:gap-2">
+                  {scolaritesDues.length > 1 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFraisChoisi("TOUTES_TRANCHES");
+                        setMontant(String(totalScolariteRestant));
+                        setErreur(undefined);
+                      }}
+                      className={cx(
+                        "col-span-2 flex flex-col items-start gap-0.5 rounded-sm border px-2.5 py-2 text-left transition-colors sm:col-span-3",
+                        fraisChoisi === "TOUTES_TRANCHES"
+                          ? "border-brand bg-brand text-white"
+                          : "border-brand/40 bg-brand-soft/40 text-brand hover:border-brand hover:bg-brand-soft",
+                      )}
+                      aria-pressed={fraisChoisi === "TOUTES_TRANCHES"}
+                    >
+                      <span className="w-full truncate text-[11.5px] font-semibold">
+                        {scolaritesDues[0].frequence_paiement === "TRANCHES"
+                          ? "Toutes les tranches (solder)"
+                          : "Toute la scolarité (solder)"}
+                      </span>
+                      <span
+                        className={cx(
+                          "chiffre text-[9.5px]",
+                          fraisChoisi === "TOUTES_TRANCHES"
+                            ? "text-white/80"
+                            : "text-brand",
+                        )}
+                      >
+                        Total : {formatNombre(totalScolariteRestant)} F ({scolaritesDues.length} échéances)
+                      </span>
+                    </button>
+                  )}
                   {lignes.map((frais) => {
                     const actif = fraisChoisi === frais.id;
                     const special = frais.type_frais !== "SCOLARITE";

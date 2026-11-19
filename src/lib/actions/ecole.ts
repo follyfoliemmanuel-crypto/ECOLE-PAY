@@ -6,6 +6,7 @@ import {
   creerSession,
   getSession,
   hacherMotDePasse,
+  refusEcriture,
   verifierMotDePasse,
 } from "../auth";
 import { estEmail, estUuid, messageErreurBdd, texte } from "./helpers";
@@ -19,6 +20,8 @@ import type { ResultatAction, Role } from "../types";
 async function directeur() {
   const session = await getSession();
   if (!session) return { erreur: "Votre session a expiré. Reconnectez-vous." as const };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { erreur: refusAbo };
   if (session.role !== "directeur") {
     return { erreur: "Cette action est réservée au directeur." as const };
   }
@@ -123,7 +126,7 @@ export async function ajouterUtilisateur(
   if (!aFonctionnalite(offre, "equipe")) {
     return {
       error:
-        "Votre offre STARTER est limitée à un seul utilisateur. Passez à PRO ou PREMIUM pour ajouter un comptable ou une secrétaire.",
+        "Votre offre STARTER est limitée à un seul utilisateur. Passez à STANDARD ou PREMIUM pour ajouter un comptable ou une secrétaire.",
     };
   }
 

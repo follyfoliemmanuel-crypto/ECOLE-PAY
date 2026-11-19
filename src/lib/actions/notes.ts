@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSession } from "../auth";
+import { getSession, refusEcriture } from "../auth";
 import { sql, transaction, uneLigne } from "../db";
 import { peut } from "../offres";
 import type { ResultatAction, Session, Trimestre } from "../types";
@@ -12,6 +12,8 @@ type Acces = { session: Session } | { error: string };
 async function accesNotes(): Promise<Acces> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (!peut(session.ecole, "notes_bulletins")) {
     return {
       error:

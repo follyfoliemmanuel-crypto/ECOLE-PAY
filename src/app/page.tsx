@@ -32,40 +32,33 @@ const plans = [
     prix: "15 000",
     limite: "1 utilisateur · 150 élèves",
     inclus: [
-      "Gestion des élèves et inscriptions",
-      "Tranches libres : montants et dates",
-      "Paiements partiels",
-      "Reçu WhatsApp structuré",
-      "Liste des impayés par tranche",
+      "Gestion des élèves, classes et profs",
+      "Notes et bulletins numériques",
+      "Rapport trimestriel et rapport annuel",
     ],
     accent: false,
   },
   {
-    nom: "PRO",
+    nom: "STANDARD",
     prix: "25 000",
     limite: "3 utilisateurs · 500 élèves",
     inclus: [
       "Tout STARTER",
-      "Directeur, comptable et secrétaire",
-      "Relance WhatsApp des impayés",
-      "Export Excel et PDF",
-      "Historique complet par élève",
-      "Total encaissé et total restant",
+      "Gestion des paiements des parents",
+      "Présences / absences avec SMS aux parents",
+      "Rapport trimestriel et rapport annuel",
     ],
     accent: true,
   },
   {
     nom: "PREMIUM",
-    prix: "40 000",
+    prix: "35 000",
     limite: "Utilisateurs et élèves illimités",
     inclus: [
-      "Tout PRO",
-      "Notes et bulletins automatiques",
-      "Profs et suivi des salaires",
-      "Multi-écoles dans un compte",
-      "Statistiques par classe et tranche",
-      "Sauvegarde automatique",
-      "Support prioritaire WhatsApp",
+      "Tout STANDARD",
+      "Rapports avec graphiques + export Excel",
+      "SMS illimités",
+      "Support prioritaire",
     ],
     accent: false,
   },
@@ -706,7 +699,8 @@ export default function PageAccueil() {
             </div>
             <p className="max-w-xs text-[13px] leading-relaxed text-muted">
               30 jours d&apos;essai avec toutes les fonctions PREMIUM, sans carte
-              bancaire. Paiement par Flooz ou TMoney ensuite.
+              bancaire. Paiement mensuel par Flooz ou TMoney. Option annuelle :
+              9 mois payés = 12 mois d&apos;accès.
             </p>
           </div>
 

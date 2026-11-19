@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { after } from "next/server";
-import { estDirecteur, getSession } from "../auth";
+import { estDirecteur, getSession, refusEcriture } from "../auth";
 import { sql, uneLigne } from "../db";
 import { peut } from "../offres";
 import { anneeScolaire } from "../mois";
@@ -142,13 +142,15 @@ export async function basculerMasquagePortail(
 ): Promise<ResultatAction> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (!estDirecteur(session)) {
     return { error: "Seul le directeur peut masquer un élève du portail parent." };
   }
   if (!peut(session.ecole, "portail_parent")) {
     return {
       error:
-        "Cette fonctionnalité est réservée à l'offre PREMIUM 40.000F. Passez à PREMIUM pour débloquer le portail parent.",
+        "Cette fonctionnalité est réservée à l'offre PREMIUM 35.000F. Passez à PREMIUM pour débloquer le portail parent.",
     };
   }
 
@@ -202,19 +204,21 @@ export async function publierBulletins(
 ): Promise<ResultatPublication> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (!estDirecteur(session)) {
     return { error: "Seul le directeur peut publier les bulletins." };
   }
   if (!peut(session.ecole, "portail_parent")) {
     return {
       error:
-        "Cette fonctionnalité est réservée à l'offre PREMIUM 40.000F. Passez à PREMIUM pour publier les bulletins sur le portail parent.",
+        "Cette fonctionnalité est réservée à l'offre PREMIUM 35.000F. Passez à PREMIUM pour publier les bulletins sur le portail parent.",
     };
   }
   if (!peut(session.ecole, "envoi_bulletins_whatsapp")) {
     return {
       error:
-        "L'envoi automatique des bulletins sur WhatsApp est réservé à l'offre PREMIUM 40.000F.",
+        "L'envoi automatique des bulletins sur WhatsApp est réservé à l'offre PREMIUM 35.000F.",
     };
   }
 

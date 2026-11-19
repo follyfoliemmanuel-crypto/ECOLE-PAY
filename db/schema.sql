@@ -40,8 +40,9 @@ create table if not exists ecoles (
   logo_url        text,                                   -- URL ou data:image (logo < 200 Ko)
   plan            text        not null default 'essai'
                   check (plan in ('essai', 'petite', 'moyenne', 'grosse')),
-  -- Offre commerciale : STARTER, PRO ou PREMIUM. Pendant l'essai, l'école
-  -- dispose temporairement de toutes les fonctions PREMIUM.
+  -- Offre commerciale : STARTER, STANDARD ou PREMIUM (facturation mensuelle).
+  -- Pendant l'essai, l'école dispose temporairement de toutes les fonctions PREMIUM.
+  -- `subscriptions` reste la source de vérité ; ces colonnes sont synchronisées.
   offre           text        not null default 'PREMIUM',
   -- Activation commerciale pilotée par le super admin.
   statut              text    not null default 'ESSAI'
@@ -293,37 +294,41 @@ end $$;
 
 create index if not exists ecoles_statut_idx on ecoles (statut);
 
--- Offres commerciales (STARTER / PRO / PREMIUM) ------------------------------
+-- Offres commerciales mensuelles (STARTER / STANDARD / PREMIUM) --------------
 alter table ecoles add column if not exists offre text;
 
--- Reprise des anciennes formules : petite -> STARTER, moyenne -> PRO,
+-- Reprise des anciennes formules : petite -> STARTER, moyenne -> STANDARD,
 -- grosse -> PREMIUM. L'essai et les bases neuves démarrent en PREMIUM.
 update ecoles
    set offre = case plan
      when 'petite' then 'STARTER'
-     when 'moyenne' then 'PRO'
+     when 'moyenne' then 'STANDARD'
      when 'grosse' then 'PREMIUM'
      else 'PREMIUM'
    end
  where offre is null;
 
+-- L'ancienne offre « PRO » devient « STANDARD » (même position, nouveau nom).
+update ecoles set offre = 'STANDARD' where offre = 'PRO';
+update ecoles
+   set offre = 'PREMIUM'
+ where offre not in ('STARTER', 'STANDARD', 'PREMIUM');
+
 alter table ecoles alter column offre set default 'PREMIUM';
 alter table ecoles alter column offre set not null;
 
-do $$
-begin
-  if not exists (select 1 from pg_constraint where conname = 'ecoles_offre_check') then
-    alter table ecoles add constraint ecoles_offre_check
-      check (offre in ('STARTER', 'PRO', 'PREMIUM'));
-  end if;
-end $$;
+alter table ecoles drop constraint if exists ecoles_offre_check;
+alter table ecoles add constraint ecoles_offre_check
+  check (offre in ('STARTER', 'STANDARD', 'PREMIUM'));
 
 create index if not exists ecoles_offre_idx on ecoles (offre);
 
--- Rôles de l'équipe : ajout du comptable (offres PRO et PREMIUM) -------------
+-- Rôles de l'équipe : ajout du comptable et du professeur --------------------
+-- (la liste inclut `prof` pour rester compatible avec les bases existantes,
+--  la migration plus bas la redéfinit à l'identique.)
 alter table users drop constraint if exists users_role_check;
 alter table users add constraint users_role_check
-  check (role in ('directeur', 'secretaire', 'comptable'));
+  check (role in ('directeur', 'secretaire', 'comptable', 'prof'));
 
 -- Reçu WhatsApp structuré : nouvelle valeur par défaut pour les modèles encore
 -- à l'ancien format. Les modèles personnalisés par un directeur sont conservés.
@@ -2068,5 +2073,98 @@ create trigger rapports_updated_at
 alter table taches drop constraint if exists taches_type_check;
 alter table taches add constraint taches_type_check
   check (type in ('BULLETIN_WHATSAPP', 'RAPPORT'));
+
+-- ===========================================================================
+--  ABONNEMENTS MENSUELS (table subscriptions)
+--  Une ligne par école : le plan en cours, sa période de validité et le
+--  dernier paiement reçu. Aucune donnée scolaire n'est jamais supprimée quand
+--  un abonnement expire : l'école passe simplement en lecture seule.
+-- ===========================================================================
+create table if not exists subscriptions (
+  id                uuid        primary key default gen_random_uuid(),
+  school_id         uuid        not null references ecoles (id) on delete cascade,
+  -- Plan commercial, en minuscules comme demandé par la spécification.
+  plan              text        not null default 'starter'
+                    check (plan in ('starter', 'standard', 'premium')),
+  status            text        not null default 'active'
+                    check (status in ('active', 'blocked')),
+  -- Premier jour couvert et dernier jour couvert par le paiement.
+  date_debut        date        not null default current_date,
+  date_fin          date        not null,
+  -- Date du dernier paiement reçu (null tant qu'aucun paiement n'est encaissé).
+  dernier_paiement  date,
+  -- Montant encaissé et durée achetée (9 mois payés = 12 mois d'accès).
+  montant           integer     not null default 0 check (montant >= 0),
+  mois_payes        integer     not null default 1 check (mois_payes > 0),
+  mois_offerts      integer     not null default 0 check (mois_offerts >= 0),
+  reference         text,
+  date_creation     timestamptz not null default now(),
+  updated_at        timestamptz not null default now()
+);
+
+-- Une seule ligne d'abonnement courante par école.
+create unique index if not exists subscriptions_school_unique
+  on subscriptions (school_id);
+create index if not exists subscriptions_echeance_idx
+  on subscriptions (date_fin);
+create index if not exists subscriptions_status_idx
+  on subscriptions (status);
+
+drop trigger if exists subscriptions_updated_at on subscriptions;
+create trigger subscriptions_updated_at
+  before update on subscriptions
+  for each row execute function maj_updated_at();
+
+-- Les colonnes `ecoles.offre`, `statut` et `date_fin_abonnement` restent
+-- lisibles par le reste de l'application : elles sont recopiées à chaque
+-- écriture dans `subscriptions`. La source de vérité est `subscriptions`.
+create or replace function synchroniser_abonnement_ecole()
+returns trigger
+language plpgsql
+as $$
+begin
+  update ecoles
+     set offre = case new.plan
+                   when 'starter' then 'STARTER'
+                   when 'standard' then 'STANDARD'
+                   else 'PREMIUM'
+                 end,
+         statut = case new.status
+                    when 'active' then 'ACTIF'
+                    else 'BLOQUE'
+                  end,
+         date_fin_abonnement = new.date_fin,
+         updated_at = now()
+   where id = new.school_id;
+  return new;
+end $$;
+
+drop trigger if exists subscriptions_sync_ecole on subscriptions;
+create trigger subscriptions_sync_ecole
+  after insert or update on subscriptions
+  for each row execute function synchroniser_abonnement_ecole();
+
+-- Reprise des écoles déjà payantes : une ligne d'abonnement par école qui
+-- n'est plus en essai, avec le plan et la date de fin déjà connus.
+insert into subscriptions
+  (school_id, plan, status, date_debut, date_fin, dernier_paiement,
+   montant, mois_payes)
+select e.id,
+       case e.offre
+         when 'STARTER' then 'starter'
+         when 'STANDARD' then 'standard'
+         else 'premium'
+       end,
+       case when e.statut = 'BLOQUE' then 'blocked' else 'active' end,
+       coalesce((e.date_fin_abonnement - interval '1 month')::date, current_date),
+       coalesce(e.date_fin_abonnement, current_date),
+       e.date_fin_abonnement,
+       0,
+       1
+  from ecoles e
+ where e.statut <> 'ESSAI'
+   and not exists (
+     select 1 from subscriptions s where s.school_id = e.id
+   );
 
 commit;

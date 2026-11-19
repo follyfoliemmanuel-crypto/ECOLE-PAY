@@ -3,66 +3,156 @@
 import { revalidatePath } from "next/cache";
 import { exigerSuperAdmin } from "../auth";
 import { transaction, uneLigne } from "../db";
-import { estOffre, OFFRES } from "../offres";
+import { dateDuJour } from "../activation";
+import {
+  MOIS_ACCES_ANNEE,
+  MOIS_PAYES_ANNEE,
+  OFFRES,
+  estOffre,
+  planDepuisOffre,
+} from "../offres";
 import { journaliser } from "../journal";
 import { estUuid } from "./helpers";
 import type { Offre, ResultatAction } from "../types";
 
-type Duree = 30 | 90;
+/** Durées proposées : 1 mois, ou l'année scolaire (9 mois payés = 12 mois). */
+type Duree = 1 | typeof MOIS_PAYES_ANNEE;
 
+const MOIS_ACCES: Record<Duree, number> = {
+  1: 1,
+  [MOIS_PAYES_ANNEE]: MOIS_ACCES_ANNEE,
+};
+
+function ajouterJours(dateIso: string, jours: number): string {
+  const date = new Date(`${dateIso}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + jours);
+  return date.toISOString().slice(0, 10);
+}
+
+function ajouterMois(dateIso: string, mois: number): string {
+  const date = new Date(`${dateIso}T00:00:00Z`);
+  const jour = date.getUTCDate();
+  date.setUTCDate(1);
+  date.setUTCMonth(date.getUTCMonth() + mois);
+  const dernierJour = new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+  ).getUTCDate();
+  date.setUTCDate(Math.min(jour, dernierJour));
+  return date.toISOString().slice(0, 10);
+}
+
+/**
+ * Encaisse un abonnement mensuel et prolonge la période couverte.
+ *
+ * `duree` = 1 : un mois. `duree` = 9 : option annuelle, 9 mois payés pour
+ * 12 mois d'accès (toute l'année scolaire). Le paiement part de la fin de la
+ * période en cours quand elle est encore valide, sinon du jour même.
+ */
 async function activer(
   ecoleId: string,
   offre: Offre,
-  jours: Duree,
+  duree: Duree,
 ): Promise<ResultatAction> {
   const auteur = await exigerSuperAdmin();
 
   if (!estUuid(ecoleId)) return { error: "École introuvable." };
   if (!estOffre(offre)) return { error: "Offre inconnue." };
 
-  const ligne = await uneLigne<{ nom: string; date_fin: string }>(
-    `update ecoles
-        set statut = 'ACTIF',
-            offre = $2,
-            date_fin_abonnement = (
-              case
-                when statut = 'ACTIF' and date_fin_abonnement is not null
-                  then greatest(date_fin_abonnement, current_date) + make_interval(days => $3::int)
-                else current_date + make_interval(days => $3::int)
-              end
-            )::date,
-            updated_at = now()
-      where id = $1
-      returning nom,
-                to_char(date_fin_abonnement, 'DD/MM/YYYY') as date_fin`,
-    [ecoleId, offre, jours],
-  );
+  const plan = planDepuisOffre(offre);
+  const aujourdhui = dateDuJour();
+  const prixMensuel = OFFRES[offre].prix;
+  const montant = prixMensuel * duree;
+  const moisAcces = MOIS_ACCES[duree];
+  const moisOfferts = moisAcces - duree;
 
-  if (!ligne) return { error: "École introuvable." };
+  const resultat = await transaction(async (client) => {
+    const ecole = await client.query<{ nom: string }>(
+      `select nom from ecoles where id = $1 for update`,
+      [ecoleId],
+    );
+    if (!ecole.rows[0]) return null;
+
+    const abo = await client.query<{
+      date_debut: string;
+      date_fin: string;
+    }>(
+      `select date_debut::text as date_debut, date_fin::text as date_fin
+         from subscriptions
+        where school_id = $1
+        for update`,
+      [ecoleId],
+    );
+
+    const existant = abo.rows[0];
+    const enCours = Boolean(existant && existant.date_fin >= aujourdhui);
+    const base = enCours ? existant!.date_fin : ajouterJours(aujourdhui, -1);
+    const dateFin = ajouterMois(base, moisAcces);
+    const dateDebut = existant?.date_debut ?? aujourdhui;
+
+    await client.query(
+      `insert into subscriptions
+         (school_id, plan, status, date_debut, date_fin, dernier_paiement,
+          montant, mois_payes, mois_offerts)
+       values ($1, $2, 'active', $3, $4, current_date, $5, $6, $7)
+       on conflict (school_id) do update
+          set plan = excluded.plan,
+              status = 'active',
+              date_debut = excluded.date_debut,
+              date_fin = excluded.date_fin,
+              dernier_paiement = current_date,
+              montant = excluded.montant,
+              mois_payes = excluded.mois_payes,
+              mois_offerts = excluded.mois_offerts,
+              updated_at = now()`,
+      [
+        ecoleId,
+        plan,
+        dateDebut,
+        dateFin,
+        montant,
+        duree,
+        moisOfferts,
+      ],
+    );
+
+    return { nom: ecole.rows[0].nom, dateDebut, dateFin };
+  });
+
+  if (!resultat) return { error: "École introuvable." };
+
+  const libelleDuree =
+    duree === 1 ? "1 mois" : `${MOIS_ACCES_ANNEE} mois (9 payés)`;
 
   await journaliser({
     action: "OFFRE_ACTIVEE",
-    libelle: `${ligne.nom} activée en ${offre} jusqu'au ${ligne.date_fin} (${jours} jours).`,
+    libelle: `${resultat.nom} activée en ${offre} pour ${libelleDuree} jusqu'au ${resultat.dateFin}.`,
     auteur,
-    cible: ligne.nom,
+    cible: resultat.nom,
     cibleId: ecoleId,
-    details: { offre, jours, date_fin: ligne.date_fin },
+    details: {
+      plan,
+      duree,
+      montant,
+      date_debut: resultat.dateDebut,
+      date_fin: resultat.dateFin,
+    },
   });
 
   revalidatePath("/super-admin");
   revalidatePath("/app", "layout");
+  revalidatePath("/abonnement");
   return {
-    success: `${ligne.nom} activée en ${offre} jusqu'au ${ligne.date_fin}. Les fonctions ${OFFRES[offre].nom} sont disponibles immédiatement.`,
+    success: `${resultat.nom} activée en ${offre} jusqu'au ${resultat.dateFin} (${libelleDuree}). Les modifications sont débloquées immédiatement.`,
   };
 }
 
 /**
  * Bascule d'offre en un clic.
  *
- * Contrairement aux six boutons d'activation, cette action ne touche ni au
- * statut ni à la date de fin d'abonnement : elle change seulement le niveau de
- * fonctionnalités. Comme `getSession()` relit l'offre en base à chaque requête,
- * le déblocage (PREMIUM) et le verrouillage (STARTER/PRO) sont immédiats, sans
+ * Contrairement à l'encaissement, cette action ne touche ni au statut ni aux
+ * dates : elle change seulement le niveau de fonctionnalités. Comme
+ * `getSession()` relit l'offre en base à chaque requête, le déblocage
+ * (PREMIUM) et le verrouillage (STARTER/STANDARD) sont immédiats, sans
  * reconnexion. Aucune donnée n'est supprimée.
  */
 export async function changerOffre(
@@ -85,6 +175,16 @@ export async function changerOffre(
 
   if (!ligne) return { error: "École introuvable." };
 
+  // Le plan de l'abonnement suit l'offre ; le statut et les dates ne bougent
+  // pas (seul un paiement les modifie).
+  await uneLigne(
+    `update subscriptions
+        set plan = $2,
+            updated_at = now()
+      where school_id = $1`,
+    [ecoleId, planDepuisOffre(offre)],
+  );
+
   await journaliser({
     action: "OFFRE_CHANGEE",
     libelle: `Bascule d'offre de ${ligne.nom} vers ${offre}.`,
@@ -99,14 +199,17 @@ export async function changerOffre(
   revalidatePath("/app", "layout");
   revalidatePath("/prof", "layout");
   revalidatePath("/premium");
+  revalidatePath("/abonnement");
 
   const fonctions =
     offre === "PREMIUM"
-      ? "comptes profs, saisie et validation des notes, portail parent, QR code et envoi WhatsApp débloqués"
-      : "comptes profs, portail parent et envoi WhatsApp verrouillés";
+      ? "rapports graphiques, export Excel, SMS illimités, comptes profs et portail parent débloqués"
+      : offre === "STANDARD"
+        ? "paiements des parents et absences débloqués, fonctions PREMIUM verrouillées"
+        : "paiements des parents et fonctions PREMIUM verrouillés";
   const blocage =
     ligne.statut === "BLOQUE"
-      ? " L'école reste bloquée : activez une offre pour rouvrir l'accès."
+      ? " L'école reste en lecture seule : encaissez un paiement pour la débloquer."
       : ligne.statut === "ESSAI"
         ? " L'essai en cours continue avec toutes les fonctions PREMIUM."
         : "";
@@ -116,26 +219,30 @@ export async function changerOffre(
   };
 }
 
-// Les six combinaisons demandées par le super admin ---------------------------
+// Les combinaisons proposées au super admin ----------------------------------
 export async function activerStarter1Mois(ecoleId: string) {
-  return activer(ecoleId, "STARTER", 30);
-}export async function activerPro1Mois(ecoleId: string) {
-  return activer(ecoleId, "PRO", 30);
+  return activer(ecoleId, "STARTER", 1);
+}
+export async function activerStandard1Mois(ecoleId: string) {
+  return activer(ecoleId, "STANDARD", 1);
 }
 export async function activerPremium1Mois(ecoleId: string) {
-  return activer(ecoleId, "PREMIUM", 30);
+  return activer(ecoleId, "PREMIUM", 1);
 }
-export async function activerStarter3Mois(ecoleId: string) {
-  return activer(ecoleId, "STARTER", 90);
+export async function activerStarterAnnee(ecoleId: string) {
+  return activer(ecoleId, "STARTER", MOIS_PAYES_ANNEE);
 }
-export async function activerPro3Mois(ecoleId: string) {
-  return activer(ecoleId, "PRO", 90);
+export async function activerStandardAnnee(ecoleId: string) {
+  return activer(ecoleId, "STANDARD", MOIS_PAYES_ANNEE);
 }
-export async function activerPremium3Mois(ecoleId: string) {
-  return activer(ecoleId, "PREMIUM", 90);
+export async function activerPremiumAnnee(ecoleId: string) {
+  return activer(ecoleId, "PREMIUM", MOIS_PAYES_ANNEE);
 }
 
-/** BLOQUER : coupe immédiatement l'accès à l'application, sans effacer les données. */
+/**
+ * BLOQUER : passe l'abonnement en lecture seule immédiatement, sans effacer
+ * la moindre donnée. Un paiement encaissé ensuite rouvre l'accès complet.
+ */
 export async function bloquerEcole(ecoleId: string): Promise<ResultatAction> {
   const auteur = await exigerSuperAdmin();
 
@@ -152,9 +259,17 @@ export async function bloquerEcole(ecoleId: string): Promise<ResultatAction> {
 
   if (!ligne) return { error: "École introuvable." };
 
+  await uneLigne(
+    `update subscriptions
+        set status = 'blocked',
+            updated_at = now()
+      where school_id = $1`,
+    [ecoleId],
+  );
+
   await journaliser({
     action: "ECOLE_BLOQUEE",
-    libelle: `${ligne.nom} a été bloquée.`,
+    libelle: `${ligne.nom} a été passée en lecture seule.`,
     auteur,
     cible: ligne.nom,
     cibleId: ecoleId,
@@ -163,7 +278,56 @@ export async function bloquerEcole(ecoleId: string): Promise<ResultatAction> {
   revalidatePath("/super-admin");
   revalidatePath("/app", "layout");
   return {
-    success: `${ligne.nom} est maintenant bloquée. Ses données restent conservées.`,
+    success: `${ligne.nom} est maintenant en lecture seule : consultation possible, modifications bloquées. Ses données restent conservées.`,
+  };
+}
+
+/**
+ * DÉBLOQUER : rétablit les modifications sans encaisser de paiement.
+ * Utile après un blocage manuel ou une erreur de règlement.
+ */
+export async function debloquerEcole(ecoleId: string): Promise<ResultatAction> {
+  const auteur = await exigerSuperAdmin();
+
+  if (!estUuid(ecoleId)) return { error: "École introuvable." };
+
+  const abo = await uneLigne<{ date_fin: string }>(
+    `update subscriptions
+        set status = 'active',
+            updated_at = now()
+      where school_id = $1
+      returning date_fin::text as date_fin`,
+    [ecoleId],
+  );
+
+  const ligne = await uneLigne<{ nom: string }>(
+    `update ecoles
+        set statut = 'ACTIF',
+            updated_at = now()
+      where id = $1
+      returning nom`,
+    [ecoleId],
+  );
+
+  if (!ligne) return { error: "École introuvable." };
+
+  await journaliser({
+    action: "ECOLE_DEBLOQUEE",
+    libelle: `${ligne.nom} a été rétablie en écriture.`,
+    auteur,
+    cible: ligne.nom,
+    cibleId: ecoleId,
+    details: { date_fin: abo?.date_fin ?? null },
+  });
+
+  revalidatePath("/super-admin");
+  revalidatePath("/app", "layout");
+
+  const expire = abo && abo.date_fin < dateDuJour();
+  return {
+    success: expire
+      ? `${ligne.nom} est débloquée, mais la période couverte est terminée : encaissez un paiement pour prolonger l'accès.`
+      : `${ligne.nom} est de nouveau autorisée à modifier ses données.`,
   };
 }
 

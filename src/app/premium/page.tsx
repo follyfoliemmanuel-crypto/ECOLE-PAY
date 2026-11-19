@@ -173,9 +173,9 @@ export default async function PagePremium({
                 Offre PREMIUM : {formatFCFA(OFFRES.PREMIUM.prix)} par mois.
               </p>
               <p className="mt-1">
-                STARTER et PRO conservent les élèves, les paiements et les notes
-                saisies manuellement. Aucune donnée n&apos;est supprimée lors
-                d&apos;un changement d&apos;offre.
+                STARTER et STANDARD conservent les élèves, les paiements et les
+                notes saisies manuellement. Aucune donnée n&apos;est supprimée
+                lors d&apos;un changement d&apos;offre.
               </p>
             </div>
 
@@ -203,8 +203,8 @@ export default async function PagePremium({
 
         <p className="mt-4 text-center text-[11px] leading-relaxed text-muted">
           SCHOOL PAY · Les fonctions PREMIUM sont vérifiées côté serveur à chaque
-          accès. Un retour à STARTER ou PRO les verrouille immédiatement, sans
-          supprimer les données.
+          accès. Un retour à STARTER ou STANDARD les verrouille immédiatement,
+          sans supprimer les données.
         </p>
       </main>
     </div>

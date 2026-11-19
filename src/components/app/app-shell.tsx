@@ -1,6 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
+  LockKeyhole,
   LogOut,
   Plus,
   Settings,
@@ -8,7 +9,8 @@ import {
 } from "lucide-react";
 import { deconnecter } from "@/lib/actions/auth";
 import { joursEssaiRestants } from "@/lib/data/ecole";
-import { offreEffective } from "@/lib/offres";
+import { libelleMotif } from "@/lib/activation";
+import { MESSAGE_LECTURE_SEULE, offreEffective } from "@/lib/offres";
 import { LIBELLES_ROLE, type Session } from "@/lib/types";
 import { Logo } from "@/components/ui/logo";
 import { BanniereMiseAJour } from "@/components/desktop/banniere-maj";
@@ -51,8 +53,38 @@ function AvatarEcole({
   );
 }
 
+function BanniereLectureSeule({ session }: { session: Session }) {
+  if (!session.ecole.lectureSeule) return null;
+
+  return (
+    <div className="mb-6 flex flex-wrap items-start justify-between gap-3 rounded-sm border border-impaye/30 bg-impaye-soft px-3.5 py-3 text-[12.5px] text-impaye">
+      <div className="flex min-w-0 items-start gap-2">
+        <LockKeyhole size={15} className="mt-0.5 shrink-0" aria-hidden />
+        <div>
+          <p className="font-semibold">
+            {session.ecole.motifLectureSeule
+              ? libelleMotif(session.ecole.motifLectureSeule)
+              : "Compte en lecture seule"}
+          </p>
+          <p className="mt-0.5 leading-relaxed text-impaye/85">
+            {MESSAGE_LECTURE_SEULE}
+          </p>
+        </div>
+      </div>
+      <Link
+        href="/abonnement"
+        className="shrink-0 rounded-sm bg-impaye px-3 py-1.5 text-[11.5px] font-semibold text-white transition-opacity hover:opacity-90"
+      >
+        Payer l&apos;abonnement
+      </Link>
+    </div>
+  );
+}
+
 function BanniereEssai({ session }: { session: Session }) {
   const { statut, offre, dateFinEssai, dateFinAbonnement } = session.ecole;
+
+  if (session.ecole.lectureSeule) return null;
 
   if (statut === "ACTIF") {
     const jours = joursEssaiRestants(dateFinAbonnement);
@@ -68,7 +100,7 @@ function BanniereEssai({ session }: { session: Session }) {
             : "arrivée à échéance aujourd'hui."}
         </p>
         <Link
-          href="/app/parametres#abonnement"
+          href="/abonnement"
           className="font-semibold underline underline-offset-2 hover:no-underline"
         >
           Renouveler
@@ -98,7 +130,7 @@ function BanniereEssai({ session }: { session: Session }) {
             : "Votre essai gratuit est terminé. Choisissez une offre pour continuer à encaisser."}
       </p>
       <Link
-        href="/app/parametres#abonnement"
+        href="/abonnement"
         className="font-semibold underline underline-offset-2 hover:no-underline"
       >
         Voir les offres
@@ -209,6 +241,7 @@ export function AppShell({
         </header>
 
         <main className="mx-auto w-full max-w-[1320px] flex-1 px-4 pb-28 pt-5 sm:px-6 sm:pt-6 lg:px-9 lg:pb-12 lg:pt-8">
+          <BanniereLectureSeule session={session} />
           <BanniereEssai session={session} />
           <BanniereMiseAJour />
           {children}

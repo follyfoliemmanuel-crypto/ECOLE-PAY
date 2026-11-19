@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { transaction, uneLigne } from "../db";
-import { getSession } from "../auth";
+import { getSession, refusEcriture } from "../auth";
 import { libelleAnnee } from "../mois";
 import { anneeActive } from "../data/annees";
 import { libelleNature, libellePeriodeFrais } from "../periodes";
@@ -33,6 +33,8 @@ export async function enregistrerPaiement(
 ): Promise<ResultatPaiement> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré. Reconnectez-vous." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
 
   const eleveId = texte(donnees, "eleve_id");
   const fraisId = texte(donnees, "frais_id");
@@ -40,8 +42,11 @@ export async function enregistrerPaiement(
   const mode = texte(donnees, "mode_paiement") as ModePaiement;
   const dateSaisie = texte(donnees, "date_paiement");
 
+  const estToutesTranches = fraisId === "TOUTES_TRANCHES";
   if (!estUuid(eleveId)) return { error: "Choisissez un élève." };
-  if (!estUuid(fraisId)) return { error: "Choisissez la période concernée." };
+  if (!estToutesTranches && !estUuid(fraisId)) {
+    return { error: "Choisissez la période concernée." };
+  }
   if (!MODES.includes(mode)) return { error: "Choisissez le mode de paiement." };
   if (!Number.isInteger(montant) || montant <= 0) {
     return { error: "Saisissez un montant valide." };
@@ -63,6 +68,137 @@ export async function enregistrerPaiement(
 
   try {
     const resultat = await transaction(async (client) => {
+      if (estToutesTranches) {
+        const lecture = await client.query<{
+          id: string;
+          montant_du: number;
+          montant_paye: number;
+          reste: number;
+          statut: string;
+          type_frais: TypeFrais;
+          frequence_paiement: Frequence;
+          periode: number;
+          libelle: string | null;
+          nom: string;
+          prenom: string;
+          nom_parent: string;
+          telephone_parent: string;
+          classe_nom: string;
+          ecole_nom: string;
+          modele_recu: string;
+        }>(
+          `select f.id, f.montant_du, f.montant_paye, f.reste, f.statut,
+                  f.type_frais, f.frequence_paiement, f.periode, f.libelle,
+                  e.nom, e.prenom, e.nom_parent, e.telephone_parent,
+                  c.nom as classe_nom, ec.nom as ecole_nom, ec.modele_recu
+             from frais f
+             join eleves e on e.id = f.eleve_id
+             join classes c on c.id = e.classe_id
+             join ecoles ec on ec.id = f.ecole_id
+            where f.ecole_id = $1
+              and f.eleve_id = $2
+              and f.annee_scolaire = $3
+              and f.type_frais = 'SCOLARITE'
+              and f.reste > 0
+              and e.statut = 'actif'
+            order by f.periode
+            for update of f`,
+          [session.ecoleId, eleveId, annee],
+        );
+
+        const listeFrais = lecture.rows;
+        if (listeFrais.length === 0) {
+          throw new ErreurMetier("Toutes les tranches sont déjà entièrement payées.");
+        }
+        const totalReste = listeFrais.reduce((acc, f) => acc + f.reste, 0);
+        const totalDu = listeFrais.reduce((acc, f) => acc + f.montant_du, 0);
+        if (montant > totalReste) {
+          throw new ErreurMetier(
+            `Le montant dépasse le total restant dû (${formatF(totalReste)}).`,
+          );
+        }
+
+        // Répartir le montant sur les échéances non soldées. La contrainte
+        // `unique (ecole_id, numero_recu)` impose un numéro distinct par ligne :
+        // on réserve autant de numéros de reçu que de lignes servies (avant,
+        // le même numéro était réutilisé et toute la transaction était annulée).
+        const parts: { frais: (typeof listeFrais)[number]; montant: number }[] =
+          [];
+        let aDistribuer = montant;
+        for (const item of listeFrais) {
+          if (aDistribuer <= 0) break;
+          const part = Math.min(aDistribuer, item.reste);
+          if (part <= 0) continue;
+          parts.push({ frais: item, montant: part });
+          aDistribuer -= part;
+        }
+        if (parts.length === 0) {
+          throw new ErreurMetier("Aucune échéance à payer pour cet élève.");
+        }
+
+        const compteur = await client.query<{ recu_compteur: number }>(
+          `update ecoles set recu_compteur = recu_compteur + $2
+            where id = $1
+            returning recu_compteur`,
+          [session.ecoleId, parts.length],
+        );
+        const dernierCompteur = compteur.rows[0].recu_compteur;
+        const premierCompteur = dernierCompteur - parts.length + 1;
+        const numero = `REC-${annee.slice(0, 4)}-${String(
+          premierCompteur,
+        ).padStart(5, "0")}`;
+
+        let dernierPaiementId = "";
+        let datePaiementRetour = "";
+
+        for (const [index, part] of parts.entries()) {
+          const numeroLigne = `REC-${annee.slice(0, 4)}-${String(
+            premierCompteur + index,
+          ).padStart(5, "0")}`;
+
+          const pRes = await client.query<{ id: string; date_paiement: string }>(
+            `insert into paiements
+               (ecole_id, eleve_id, frais_id, montant, mode_paiement,
+                numero_recu, date_paiement, enregistre_par, reste_apres)
+             values ($1, $2, $3, $4, $5, $6, coalesce($7::timestamptz, now()), $8, $9)
+             returning id,
+                       to_char(date_paiement, 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as date_paiement`,
+            [
+              session.ecoleId,
+              eleveId,
+              part.frais.id,
+              part.montant,
+              mode,
+              numeroLigne,
+              datePaiement,
+              session.userId,
+              part.frais.reste - part.montant,
+            ],
+          );
+          dernierPaiementId = pRes.rows[0].id;
+          datePaiementRetour = pRes.rows[0].date_paiement;
+        }
+
+        const premier = listeFrais[0];
+        const libelleGlobal =
+          premier.frequence_paiement === "TRANCHES"
+            ? "Toutes les tranches"
+            : "Toute la scolarité";
+
+        return {
+          id: dernierPaiementId,
+          numero,
+          date: datePaiementRetour,
+          reste: totalReste - montant,
+          frais: {
+            ...premier,
+            periode: 0,
+            montant_du: totalDu,
+            libelle: libelleGlobal,
+          },
+        };
+      }
+
       // 1. Lire et verrouiller l'échéance concernée.
       const lecture = await client.query<{
         id: string;
@@ -243,6 +379,8 @@ export async function annulerPaiement(
 ): Promise<{ error?: string; success?: string }> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (session.role !== "directeur") {
     return { error: "Seul le directeur peut annuler un paiement." };
   }

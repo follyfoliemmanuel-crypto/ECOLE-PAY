@@ -384,7 +384,7 @@ export function FormulaireEleve({
               />
             </div>
             <p className="aide">
-              Numéro togolais à 8 chiffres (90, 91, 92, 93, 70 ou 99). C&apos;est
+              Numéro togolais à 8 chiffres (70-73, 78-79, 90-93, 96-99). C&apos;est
               sur ce numéro que partent les reçus et les rappels.
             </p>
           </div>

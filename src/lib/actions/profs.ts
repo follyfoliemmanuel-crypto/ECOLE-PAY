@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { hacherMotDePasse, getSession } from "../auth";
+import { hacherMotDePasse, getSession, refusEcriture } from "../auth";
 import { sql, transaction, uneLigne } from "../db";
 import { peut } from "../offres";
 import { formatFCFA, normaliserTelephone } from "../format";
@@ -15,10 +15,12 @@ type Acces = { session: Session } | { error: string };
 async function accesProfs(): Promise<Acces> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (!peut(session.ecole, "comptes_profs")) {
     return {
       error:
-        "Cette fonctionnalité est réservée à l'offre PREMIUM 40.000F. Passez à PREMIUM pour débloquer les comptes profs.",
+        "Cette fonctionnalité est réservée à l'offre PREMIUM 35.000F. Passez à PREMIUM pour débloquer les comptes profs.",
     };
   }
   return { session };

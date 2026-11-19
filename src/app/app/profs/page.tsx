@@ -50,7 +50,7 @@ export default async function PageProfs({
 }) {
   const session = await exigerSession();
 
-  // Accès direct par URL en STARTER/PRO : redirection vers la page de paiement.
+  // Accès direct par URL en STARTER/STANDARD : redirection vers la page de paiement.
   if (!peut(session.ecole, "comptes_profs")) {
     redirect(
       `/premium?depuis=${encodeURIComponent("les comptes professeurs")}`,

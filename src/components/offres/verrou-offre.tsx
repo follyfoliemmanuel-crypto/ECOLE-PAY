@@ -73,7 +73,7 @@ export function VerrouOffre({
 
           <div className="flex flex-col gap-2 sm:flex-row">
             <Link
-              href="/app/parametres#abonnement"
+              href="/abonnement"
               className="inline-flex h-10 flex-1 items-center justify-center gap-2 rounded-sm bg-brand px-4 text-[13px] font-semibold text-white transition-colors hover:bg-brand-deep"
             >
               Voir les offres et les prix

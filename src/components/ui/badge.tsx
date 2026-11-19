@@ -44,7 +44,7 @@ export function Badge({
   className,
 }: {
   children: React.ReactNode;
-  ton?: "neutre" | "brand" | "ochre" | "succes";
+  ton?: "neutre" | "brand" | "ochre" | "succes" | "alerte";
   className?: string;
 }) {
   const tons = {
@@ -52,6 +52,7 @@ export function Badge({
     brand: "bg-brand-soft text-brand border-brand/15",
     ochre: "bg-[#fbf1de] text-[#8a5a10] border-ochre/25",
     succes: "bg-paye-soft text-paye border-paye/20",
+    alerte: "bg-impaye-soft text-impaye border-impaye/20",
   };
   return (
     <span

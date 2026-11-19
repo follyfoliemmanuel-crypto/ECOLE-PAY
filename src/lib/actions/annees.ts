@@ -3,7 +3,7 @@
 import { after } from "next/server";
 import { revalidatePath } from "next/cache";
 import { sql, transaction, uneLigne } from "../db";
-import { getSession } from "../auth";
+import { getSession, refusEcriture } from "../auth";
 import {
   anneeSuivante,
   bornesAnnee,
@@ -72,6 +72,8 @@ export async function cloturerAnnee(
 ): Promise<ResultatAction> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (session.role !== "directeur") {
     return { error: "Seul le directeur peut clôturer une année scolaire." };
   }
@@ -329,6 +331,8 @@ export async function transfererEleve(
 ): Promise<ResultatAction> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (!peutGererEleves(session.role)) {
     return { error: "Vous n'êtes pas autorisé à transférer un élève." };
   }
@@ -425,6 +429,8 @@ export async function enregistrerAbsence(
 ): Promise<ResultatAction> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (!peutGererEleves(session.role)) {
     return { error: "Vous n'êtes pas autorisé à saisir une absence." };
   }
@@ -482,6 +488,8 @@ export async function supprimerAbsence(
 ): Promise<ResultatAction> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (!peutGererEleves(session.role)) {
     return { error: "Vous n'êtes pas autorisé à corriger une absence." };
   }
@@ -513,6 +521,8 @@ export async function demanderRapport(
 ): Promise<ResultatAction> {
   const session = await getSession();
   if (!session) return { error: "Votre session a expiré." };
+  const refusAbo = refusEcriture(session);
+  if (refusAbo) return { error: refusAbo };
   if (!["directeur", "secretaire", "comptable"].includes(session.role)) {
     return { error: "Vous n'êtes pas autorisé à générer un rapport." };
   }

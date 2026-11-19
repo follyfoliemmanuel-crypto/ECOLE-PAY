@@ -174,8 +174,8 @@ export function BoutonPremium({
 }
 
 /**
- * Carte « Portail parent » affichée en STARTER/PRO : le contenu est visible mais
- * grisé, les actions (portail, WhatsApp, QR code) ouvrent la fenêtre PREMIUM.
+ * Carte « Portail parent » affichée en STARTER/STANDARD : le contenu est visible
+ * mais grisé, les actions (portail, WhatsApp, QR code) ouvrent la fenêtre PREMIUM.
  */
 export function CartePortailPremium({ ecole }: { ecole: string }) {
   return (

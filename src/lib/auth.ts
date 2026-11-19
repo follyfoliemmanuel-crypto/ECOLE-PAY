@@ -5,14 +5,24 @@ import { redirect } from "next/navigation";
 import bcrypt from "bcryptjs";
 import { SignJWT, jwtVerify } from "jose";
 import { sql, uneLigne } from "./db";
-import { accesAutorise, emailSuperAdmin } from "./activation";
+import {
+  emailSuperAdmin,
+  motifLectureSeule,
+} from "./activation";
+import { OFFRE_ESSAI, offreDepuisPlan } from "./offres";
 import { INACTIVITE_MAX_MS, RAFRAICHISSEMENT_ACTIVITE_MS } from "./securite";
 import {
   NOM_COOKIE_SESSION,
   NOM_COOKIE_SUPER,
   optionsCookie,
 } from "./cookies";
-import type { Offre, Role, Session, StatutEcole } from "./types";
+import type {
+  AbonnementEcole,
+  Offre,
+  Role,
+  Session,
+  StatutEcole,
+} from "./types";
 
 const DUREE_SESSION = 60 * 60 * 24 * 30; // 30 jours
 const DUREE_SUPER = 60 * 60 * 2; // 2 heures : le super admin agit sur toutes les écoles
@@ -132,16 +142,31 @@ export const getSession = cache(async (): Promise<Session | null> => {
     statut: StatutEcole;
     date_fin_essai: string | null;
     date_fin_abonnement: string | null;
+    abo_plan: string | null;
+    abo_statut: string | null;
+    abo_debut: string | null;
+    abo_fin: string | null;
+    abo_dernier_paiement: string | null;
+    abo_montant: number | null;
+    abo_mois: number | null;
   }>(
     `select u.id, u.ecole_id, u.nom, u.email, u.identifiant, u.role,
             u.token_version, p.id as prof_id,
             extract(epoch from u.derniere_activite)::float8 as derniere_activite,
             e.nom as ecole_nom, e.logo_url, e.offre, e.statut,
             e.date_fin_essai::text as date_fin_essai,
-            e.date_fin_abonnement::text as date_fin_abonnement
+            e.date_fin_abonnement::text as date_fin_abonnement,
+            s.plan as abo_plan,
+            s.status as abo_statut,
+            s.date_debut::text as abo_debut,
+            s.date_fin::text as abo_fin,
+            s.dernier_paiement::text as abo_dernier_paiement,
+            s.montant as abo_montant,
+            s.mois_payes as abo_mois
        from users u
        join ecoles e on e.id = u.ecole_id
        left join profs p on p.user_id = u.id and p.ecole_id = u.ecole_id
+       left join subscriptions s on s.school_id = e.id
       where u.id = $1
         and u.actif = true
         and e.actif = true`,
@@ -166,6 +191,34 @@ export const getSession = cache(async (): Promise<Session | null> => {
     ]);
   }
 
+  const abonnement: AbonnementEcole | null = ligne.abo_plan
+    ? {
+        plan: offreDepuisPlan(ligne.abo_plan),
+        statut: ligne.abo_statut === "blocked" ? "blocked" : "active",
+        dateDebut: ligne.abo_debut ?? new Date().toISOString().slice(0, 10),
+        dateFin: ligne.abo_fin ?? new Date().toISOString().slice(0, 10),
+        dernierPaiement: ligne.abo_dernier_paiement,
+        montant: ligne.abo_montant ?? 0,
+        moisPayes: ligne.abo_mois ?? 1,
+      }
+    : null;
+
+  // `subscriptions` est la source de vérité. L'offre et le mode lecture seule
+  // sont recalculés à chaque requête : aucun redémarrage n'est nécessaire
+  // après un paiement ou un blocage.
+  const offre: Offre =
+    ligne.statut === "ESSAI"
+      ? OFFRE_ESSAI
+      : (abonnement?.plan ?? ligne.offre);
+
+  const motif = motifLectureSeule({
+    statut: ligne.statut,
+    dateFinEssai: ligne.date_fin_essai,
+    abonnement: abonnement
+      ? { statut: abonnement.statut, dateFin: abonnement.dateFin }
+      : null,
+  });
+
   return {
     userId: ligne.id,
     ecoleId: ligne.ecole_id,
@@ -178,10 +231,13 @@ export const getSession = cache(async (): Promise<Session | null> => {
       id: ligne.ecole_id,
       nom: ligne.ecole_nom,
       logoUrl: ligne.logo_url,
-      offre: ligne.offre,
+      offre,
       statut: ligne.statut,
       dateFinEssai: ligne.date_fin_essai,
-      dateFinAbonnement: ligne.date_fin_abonnement,
+      dateFinAbonnement: abonnement?.dateFin ?? ligne.date_fin_abonnement,
+      abonnement,
+      lectureSeule: motif !== null,
+      motifLectureSeule: motif,
     },
   };
 });
@@ -192,8 +248,19 @@ export async function exigerSession(): Promise<Session> {
   // Un professeur n'a accès qu'à son espace de saisie : il ne voit jamais les
   // paiements, les paramètres ni les autres écoles.
   if (session.role === "prof") redirect("/prof");
-  if (!accesAutorise(session.ecole)) redirect("/blocage");
+  // Un impayé ne coupe plus l'accès : l'école passe en lecture seule et garde
+  // la consultation de toutes ses données. Les écritures sont refusées par
+  // `refusEcriture()` dans chaque Server Action.
   return session;
+}
+
+/**
+ * Garde des Server Actions qui modifient les données.
+ * Retourne un message d'erreur quand l'abonnement n'est pas réglé.
+ */
+export function refusEcriture(session: Session): string | null {
+  if (!session.ecole.lectureSeule) return null;
+  return "Votre abonnement SCHOOL PAY n'est pas réglé : le compte est en lecture seule. Ouvrez la page Abonnement pour payer et débloquer immédiatement les modifications.";
 }
 
 /**
@@ -204,7 +271,6 @@ export async function exigerProf(): Promise<Session> {
   const session = await getSession();
   if (!session) redirect("/connexion?suivant=/prof");
   if (session.role !== "prof") redirect("/app");
-  if (!accesAutorise(session.ecole)) redirect("/blocage");
   if (!session.profId) redirect("/connexion");
   return session;
 }

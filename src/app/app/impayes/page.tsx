@@ -20,7 +20,7 @@ import {
 import { getEcole } from "@/lib/data/ecole";
 import { getDashboard, type Impaye } from "@/lib/data/dashboard";
 import { listerImpayes } from "@/lib/data/impayes";
-import { nombreTranchesMax } from "@/lib/data/classes";
+import { frequenceParDefautEcole, nombreTranchesMax } from "@/lib/data/classes";
 import {
   formatF,
   formatNombre,
@@ -52,8 +52,9 @@ export default async function PageImpayes({
   const peutRelancer = peut(session.ecole, "relances");
   const peutExporter = peut(session.ecole, "exports");
   const annee = await anneeActive(session.ecoleId);
-  const frequence = frequenceDepuisParametre(parametres.frequence);
-  const periode = periodeDepuisParametre(parametres.periode, frequence);
+  const defautFrequence = await frequenceParDefautEcole(session.ecoleId);
+  const frequence = frequenceDepuisParametre(parametres.frequence, defautFrequence);
+  const periode = periodeDepuisParametre(parametres.periode, frequence, 0);
   const page = Math.max(1, Number.parseInt(parametres.page ?? "1", 10) || 1);
 
   const [ecole, impayesPeriode, dashboard, nbTranches] = await Promise.all([
@@ -134,13 +135,13 @@ export default async function PageImpayes({
           <p className="flex items-center gap-2">
             <MessageCircle size={14} aria-hidden />
             La relance WhatsApp des parents impayés est incluse dans l&apos;offre
-            PRO.
+            STANDARD.
           </p>
           <Link
-            href="/app/parametres#abonnement"
+            href="/abonnement"
             className="font-semibold underline underline-offset-2 hover:no-underline"
           >
-            Passer à PRO
+            Passer à STANDARD
           </Link>
         </div>
       )}
