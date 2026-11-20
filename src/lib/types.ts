@@ -199,6 +199,8 @@ export type FraisPeriode = {
   montant_paye: number;
   reste: number;
   statut: StatutFrais;
+  /** Faux tant que la date limite de l'échéance n'est pas atteinte. */
+  echue?: boolean;
 };
 
 /** Élève + toutes ses échéances, chargé à la sélection dans le paiement. */

@@ -1,5 +1,6 @@
 import { sql, uneLigne } from "../db";
 import type { Classe, Frequence, Tranche } from "../types";
+import { echeanceDue } from "./echeances";
 
 /** Charge les tranches de plusieurs classes en une seule requête. */
 async function attacherTranches<T extends Classe>(
@@ -95,6 +96,7 @@ export async function listerClassesAvecStats(
   frequence: Frequence,
   periode: number,
 ): Promise<ClasseStats[]> {
+  const dueF2 = echeanceDue("f2");
   const classes = await sql<ClasseStats>(
     `select c.id, c.nom, c.montant_periode, c.frequence_paiement,
             c.frais_inscription, c.frais_reinscription,
@@ -108,8 +110,10 @@ export async function listerClassesAvecStats(
                    and f2.ecole_id = c.ecole_id
                    and f2.annee_scolaire = $2
                    and f2.type_frais = 'SCOLARITE'
+                   and f2.frequence_paiement = c.frequence_paiement
                    and ($4::int = 0 or f2.periode = $4)
                    and f2.reste > 0
+                   and ${dueF2}
               )
             )::int as payes,
             count(distinct e.id) filter (
@@ -119,18 +123,40 @@ export async function listerClassesAvecStats(
                    and f2.ecole_id = c.ecole_id
                    and f2.annee_scolaire = $2
                    and f2.type_frais = 'SCOLARITE'
+                   and f2.frequence_paiement = c.frequence_paiement
                    and ($4::int = 0 or f2.periode = $4)
                    and f2.montant_paye > 0
-                   and f2.reste > 0
               )
-            )::int as partiels,
-            count(distinct e.id) filter (
-              where not exists (
+              and exists (
                 select 1 from frais f2
                  where f2.eleve_id = e.id
                    and f2.ecole_id = c.ecole_id
                    and f2.annee_scolaire = $2
                    and f2.type_frais = 'SCOLARITE'
+                   and f2.frequence_paiement = c.frequence_paiement
+                   and ($4::int = 0 or f2.periode = $4)
+                   and f2.reste > 0
+                   and ${dueF2}
+              )
+            )::int as partiels,
+            count(distinct e.id) filter (
+              where exists (
+                select 1 from frais f2
+                 where f2.eleve_id = e.id
+                   and f2.ecole_id = c.ecole_id
+                   and f2.annee_scolaire = $2
+                   and f2.type_frais = 'SCOLARITE'
+                   and f2.frequence_paiement = c.frequence_paiement
+                   and ($4::int = 0 or f2.periode = $4)
+                   and ${dueF2}
+              )
+              and not exists (
+                select 1 from frais f2
+                 where f2.eleve_id = e.id
+                   and f2.ecole_id = c.ecole_id
+                   and f2.annee_scolaire = $2
+                   and f2.type_frais = 'SCOLARITE'
+                   and f2.frequence_paiement = c.frequence_paiement
                    and ($4::int = 0 or f2.periode = $4)
                    and f2.montant_paye > 0
               )

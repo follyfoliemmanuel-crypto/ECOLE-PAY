@@ -623,34 +623,50 @@ update ecoles
        modele_relance = replace(modele_relance, '{mois}', '{periode}')
  where modele_recu like '%{mois}%' or modele_relance like '%{mois}%';
 
--- Backfill : les élèves créés avant cette version n'ont pas de ligne
--- d'inscription / réinscription. On la crée avec le tarif actuel de la classe.
+-- Backfill : les nouveaux élèves créés avant cette version n'ont pas de ligne
+-- d'inscription. On la crée avec le tarif actuel de la classe.
+-- Les anciens élèves ne paient aucun frais d'entrée : aucune ligne pour eux.
 insert into frais
   (ecole_id, eleve_id, annee_scolaire, type_frais, frequence_paiement,
    periode, libelle, montant_du)
 select e.ecole_id,
        e.id,
        e.annee_scolaire,
-       case when e.type_inscription = 'ANCIEN'
-            then 'REINSCRIPTION' else 'INSCRIPTION' end,
+       'INSCRIPTION',
        c.frequence_paiement,
        0,
-       case when e.type_inscription = 'ANCIEN'
-            then 'Frais de réinscription' else 'Frais d''inscription' end,
-       greatest(
-         case when e.type_inscription = 'ANCIEN'
-              then c.frais_reinscription else c.frais_inscription end,
-         0
-       )
+       'Frais d''inscription',
+       greatest(c.frais_inscription, 0)
   from eleves e
   join classes c on c.id = e.classe_id
- where not exists (
+ where e.type_inscription = 'NOUVEAU'
+   and not exists (
    select 1 from frais f
     where f.eleve_id = e.id
       and f.annee_scolaire = e.annee_scolaire
       and f.type_frais in ('INSCRIPTION', 'REINSCRIPTION')
  )
 on conflict (eleve_id, annee_scolaire, type_frais, periode) do nothing;
+
+-- Les anciens élèves ne paient ni inscription ni réinscription.
+-- Les lignes encore impayées sont supprimées ; une ligne déjà entamée est
+-- conservée et son montant dû ramené à ce qui a été encaissé, pour ne jamais
+-- effacer un versement reçu.
+delete from frais f
+ using eleves e
+ where f.eleve_id = e.id
+   and e.type_inscription = 'ANCIEN'
+   and f.type_frais in ('INSCRIPTION', 'REINSCRIPTION')
+   and f.montant_paye = 0;
+
+update frais f
+   set montant_du = f.montant_paye
+  from eleves e
+ where f.eleve_id = e.id
+   and e.type_inscription = 'ANCIEN'
+   and f.type_frais in ('INSCRIPTION', 'REINSCRIPTION')
+   and f.montant_paye > 0
+   and f.montant_du <> f.montant_paye;
 
 -- ===========================================================================
 --  FONCTIONS ET TRIGGERS
@@ -694,6 +710,36 @@ language sql immutable as $$
       [greatest(1, least(10, p_periode))]
     when p_frequence = 'ANNUEL' then 'Année ' || p_annee
     else 'Tranche ' || p_periode
+  end;
+$$;
+
+-- Date à partir de laquelle une échéance est exigible ----------------------
+-- Une échéance n'est « impayée » que lorsque sa date limite est dépassée :
+--   • tranche libre : la date limite de la tranche (null = exigible) ;
+--   • mensuel       : le 5 du mois concerné (septembre = période 1) ;
+--   • annuel        : le 5 septembre de l'année scolaire ;
+--   • inscription / réinscription : le jour de l'inscription.
+create or replace function date_echeance_frais(
+  p_type_frais  text,
+  p_frequence   text,
+  p_periode     integer,
+  p_annee       text,
+  p_tranche_id  uuid,
+  p_inscription date
+) returns date
+language sql stable as $$
+  select case
+    when p_type_frais <> 'SCOLARITE' then p_inscription
+    when p_frequence = 'TRANCHES' then
+      (select t.date_limite from tranches t where t.id = p_tranche_id)
+    when p_frequence = 'MENSUEL' then
+      make_date(
+        split_part(p_annee, '-', 1)::int + ((8 + p_periode - 1) / 12),
+        ((8 + p_periode - 1) % 12) + 1,
+        5
+      )
+    else
+      make_date(split_part(p_annee, '-', 1)::int, 9, 5)
   end;
 $$;
 
@@ -796,45 +842,57 @@ begin
     end if;
   end if;
 
+  -- Les anciens élèves ne paient aucun frais d'entrée : v_type reste null et
+  -- seules les lignes encore impayées sont retirées. Une ligne déjà entamée est
+  -- conservée (l'argent reçu n'est jamais effacé).
   v_special := case
-    when v_eleve.type_inscription = 'ANCIEN' then v_classe.frais_reinscription
+    when v_eleve.type_inscription = 'ANCIEN' then 0
     else v_classe.frais_inscription
   end;
   v_type := case
-    when v_eleve.type_inscription = 'ANCIEN' then 'REINSCRIPTION'
+    when v_eleve.type_inscription = 'ANCIEN' then null
     else 'INSCRIPTION'
   end;
 
-  -- Si le type d'inscription a changé, on retire l'ancienne ligne spéciale
-  -- encore impayée (jamais une ligne déjà entamée).
+  -- Ligne d'entrée obsolète : mauvais type, ou élève devenu ancien.
   delete from frais
    where eleve_id = v_eleve.id
      and annee_scolaire = v_eleve.annee_scolaire
      and type_frais in ('INSCRIPTION', 'REINSCRIPTION')
-     and type_frais <> v_type
-     and montant_paye = 0;
+     and montant_paye = 0
+     and (v_type is null or type_frais <> v_type);
 
-  update frais
-     set montant_du = coalesce(v_special, 0),
-         libelle = case when v_type = 'INSCRIPTION'
-                        then 'Frais d''inscription'
-                        else 'Frais de réinscription' end
-   where eleve_id = v_eleve.id
-     and annee_scolaire = v_eleve.annee_scolaire
-     and type_frais = v_type
-     and montant_paye = 0;
+  -- Ligne déjà entamée : l'argent reçu reste enregistré, seul le reste à
+  -- payer est annulé.
+  if v_type is null then
+    update frais
+       set montant_du = montant_paye
+     where eleve_id = v_eleve.id
+       and annee_scolaire = v_eleve.annee_scolaire
+       and type_frais in ('INSCRIPTION', 'REINSCRIPTION')
+       and montant_paye > 0
+       and montant_du <> montant_paye;
+  end if;
 
-  insert into frais
-    (ecole_id, eleve_id, annee_scolaire, type_frais, frequence_paiement,
-     periode, libelle, montant_du)
-  values
-    (v_eleve.ecole_id, v_eleve.id, v_eleve.annee_scolaire, v_type,
-     v_classe.frequence_paiement, 0,
-     case when v_type = 'INSCRIPTION'
-          then 'Frais d''inscription'
-          else 'Frais de réinscription' end,
-     coalesce(v_special, 0))
-  on conflict (eleve_id, annee_scolaire, type_frais, periode) do nothing;
+  if v_type is not null then
+    update frais
+       set montant_du = coalesce(v_special, 0),
+           libelle = 'Frais d''inscription'
+     where eleve_id = v_eleve.id
+       and annee_scolaire = v_eleve.annee_scolaire
+       and type_frais = v_type
+       and montant_paye = 0;
+
+    insert into frais
+      (ecole_id, eleve_id, annee_scolaire, type_frais, frequence_paiement,
+       periode, libelle, montant_du)
+    values
+      (v_eleve.ecole_id, v_eleve.id, v_eleve.annee_scolaire, v_type,
+       v_classe.frequence_paiement, 0,
+       'Frais d''inscription',
+       coalesce(v_special, 0))
+    on conflict (eleve_id, annee_scolaire, type_frais, periode) do nothing;
+  end if;
 end $$;
 
 -- Création automatique des échéances à l'inscription d'un élève --------------
@@ -843,8 +901,6 @@ language plpgsql as $$
 declare
   v_classe   record;
   v_nb       integer;
-  v_type     text;
-  v_montant  integer;
 begin
   select c.montant_periode, c.frequence_paiement,
          c.frais_inscription, c.frais_reinscription
@@ -879,22 +935,19 @@ begin
     on conflict (eleve_id, annee_scolaire, type_frais, periode) do nothing;
   end if;
 
-  v_type := case when new.type_inscription = 'ANCIEN'
-                 then 'REINSCRIPTION' else 'INSCRIPTION' end;
-  v_montant := case when v_type = 'REINSCRIPTION'
-                    then v_classe.frais_reinscription
-                    else v_classe.frais_inscription end;
+  -- Les anciens élèves ne paient aucun frais d'entrée.
+  if new.type_inscription = 'ANCIEN' then
+    return new;
+  end if;
 
   insert into frais
     (ecole_id, eleve_id, annee_scolaire, type_frais, frequence_paiement,
      periode, libelle, montant_du)
   values
-    (new.ecole_id, new.id, new.annee_scolaire, v_type,
+    (new.ecole_id, new.id, new.annee_scolaire, 'INSCRIPTION',
      v_classe.frequence_paiement, 0,
-     case when v_type = 'INSCRIPTION'
-          then 'Frais d''inscription'
-          else 'Frais de réinscription' end,
-     coalesce(v_montant, 0))
+     'Frais d''inscription',
+     coalesce(v_classe.frais_inscription, 0))
   on conflict (eleve_id, annee_scolaire, type_frais, periode) do nothing;
 
   return new;

@@ -359,7 +359,7 @@ export function ImportEleves({ classes }: { classes: ClasseOption[] }) {
               {
                 valeur: "ANCIEN" as const,
                 libelle: "Anciens élèves",
-                detail: "Frais de réinscription",
+                detail: "Aucun frais d'entrée",
               },
             ].map((option) => (
               <label

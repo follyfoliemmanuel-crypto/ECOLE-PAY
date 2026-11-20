@@ -213,6 +213,8 @@ export type EcheancePublique = {
   reste: number;
   statut: StatutFrais;
   date_limite: string | null;
+  /** Faux tant que la date limite de l'échéance n'est pas atteinte. */
+  echue: boolean;
 };
 
 export type SituationPaiements = {
@@ -232,8 +234,16 @@ export async function situationPaiements(
   const echeances = await sql<EcheancePublique>(
     `select f.id, f.type_frais, f.libelle, f.periode,
             f.montant_du, f.montant_paye, f.reste, f.statut,
-            t.date_limite::text as date_limite
+            t.date_limite::text as date_limite,
+            coalesce(
+              date_echeance_frais(
+                f.type_frais, f.frequence_paiement, f.periode,
+                f.annee_scolaire, f.tranche_id, e.date_inscription
+              ) <= current_date,
+              true
+            ) as echue
        from frais f
+       join eleves e on e.id = f.eleve_id
        left join tranches t on t.id = f.tranche_id
       where f.ecole_id = $1
         and f.eleve_id = $2

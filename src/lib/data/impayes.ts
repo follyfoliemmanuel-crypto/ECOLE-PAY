@@ -1,6 +1,7 @@
 import { sql, uneLigne } from "../db";
 import type { Frequence } from "../types";
 import type { Impaye } from "./dashboard";
+import { echeanceDue } from "./echeances";
 
 export type ImpayeParClasse = {
   classe: string;
@@ -13,6 +14,7 @@ const FILTRE_PERIODE = `
   and f.annee_scolaire = $2
   and f.statut <> 'PAYE'
   and e.statut = 'actif'
+  and ${echeanceDue("f")}
   and (
     ($4::int = 0 and f.type_frais = 'SCOLARITE')
     or

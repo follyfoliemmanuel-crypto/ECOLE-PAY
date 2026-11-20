@@ -180,12 +180,6 @@ export default async function PageClasses({
                     <span className="text-[10.5px] text-muted">
                       Inscription {classe.frais_inscription > 0 ? formatF(classe.frais_inscription) : "gratuite"}
                     </span>
-                    <span className="text-[10.5px] text-muted" aria-hidden>
-                      ·
-                    </span>
-                    <span className="text-[10.5px] text-muted">
-                      Réinscription {classe.frais_reinscription > 0 ? formatF(classe.frais_reinscription) : "gratuite"}
-                    </span>
                   </div>
                 </div>
 

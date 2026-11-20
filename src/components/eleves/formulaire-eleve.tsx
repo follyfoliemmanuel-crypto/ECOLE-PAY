@@ -81,10 +81,9 @@ export function FormulaireEleve({
   }, [etat, creation, classes]);
 
   const classe = classes.find((c) => c.id === classeId);
+  // Les anciens élèves ne paient aucun frais d'entrée.
   const fraisEntree =
-    typeInscription === "ANCIEN"
-      ? (classe?.frais_reinscription ?? 0)
-      : (classe?.frais_inscription ?? 0);
+    typeInscription === "ANCIEN" ? 0 : (classe?.frais_inscription ?? 0);
   const tranches = classe?.tranches ?? [];
   const totalTranches = tranches.reduce(
     (somme, tranche) => somme + tranche.montant,
@@ -240,7 +239,7 @@ export function FormulaireEleve({
             {
               valeur: "ANCIEN" as const,
               libelle: "Ancien élève",
-              detail: "Frais de réinscription",
+              detail: "Aucun frais d'entrée",
             },
           ].map((option) => (
             <label
@@ -332,13 +331,20 @@ export function FormulaireEleve({
                 ))}
               </ul>
             )}
-            <p>
-              {typeInscription === "ANCIEN" ? "Réinscription" : "Inscription"} :{" "}
-              <strong className="text-ink">
-                {fraisEntree > 0 ? formatFCFA(fraisEntree) : "gratuite"}
-              </strong>
-              . L&apos;élève est inscrit dès que ces frais sont soldés.
-            </p>
+            {typeInscription === "ANCIEN" ? (
+              <p>
+                Aucun frais d&apos;inscription ni de réinscription : un ancien
+                élève ne paie que sa scolarité.
+              </p>
+            ) : (
+              <p>
+                Inscription :{" "}
+                <strong className="text-ink">
+                  {fraisEntree > 0 ? formatFCFA(fraisEntree) : "gratuite"}
+                </strong>
+                . L&apos;élève est inscrit dès que ces frais sont soldés.
+              </p>
+            )}
           </div>
         )}
       </div>

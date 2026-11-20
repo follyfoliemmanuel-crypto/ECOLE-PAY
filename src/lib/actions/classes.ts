@@ -113,7 +113,9 @@ function lireClasse(donnees: FormData): {
   const nom = texte(donnees, "nom");
   const frequenceBrute = texte(donnees, "frequence_paiement") || "MENSUEL";
   const inscription = entierOptionnel(donnees, "frais_inscription");
-  const reinscription = entierOptionnel(donnees, "frais_reinscription");
+  // Les anciens élèves ne paient aucun frais d'entrée : le tarif de
+  // réinscription n'est plus utilisé. La colonne reste pour l'historique.
+  const reinscription = 0;
   const typeFinBrut = texte(donnees, "type_fin") || "NORMALE";
   const examenBrut = texte(donnees, "examen");
   const suivanteBrute = texte(donnees, "classe_suivante_id");
@@ -172,13 +174,6 @@ function lireClasse(donnees: FormData): {
 
   if (!Number.isFinite(inscription) || inscription < 0 || inscription > 10_000_000) {
     return { error: "Les frais d'inscription doivent être un nombre valide." };
-  }
-  if (
-    !Number.isFinite(reinscription) ||
-    reinscription < 0 ||
-    reinscription > 10_000_000
-  ) {
-    return { error: "Les frais de réinscription doivent être un nombre valide." };
   }
 
   return {

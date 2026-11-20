@@ -3,6 +3,7 @@ import {
   listerClassesAvecStats,
   type ClasseStats,
 } from "./classes";
+import { echeanceDue } from "./echeances";
 import type { Frequence, ModePaiement, TypeFrais } from "../types";
 
 export type ResumeStats = {
@@ -112,8 +113,12 @@ export async function getStatistiques(
               coalesce(sum(f.montant_paye), 0)::int as encaisse,
               coalesce(sum(f.reste), 0)::int as restant,
               count(f.id) filter (where f.statut = 'PAYE')::int as payes,
-              count(f.id) filter (where f.statut = 'PARTIEL')::int as partiels,
-              count(f.id) filter (where f.statut = 'NON_PAYE')::int as impayes
+              count(f.id) filter (
+                where f.statut = 'PARTIEL' and ${echeanceDue("f")}
+              )::int as partiels,
+              count(f.id) filter (
+                where f.statut = 'NON_PAYE' and ${echeanceDue("f")}
+              )::int as impayes
          from frais f
          join eleves e on e.id = f.eleve_id
         where f.ecole_id = $1
@@ -206,6 +211,7 @@ export async function getStatistiques(
           and f.annee_scolaire = $2
           and f.statut <> 'PAYE'
           and e.statut = 'actif'
+          and ${echeanceDue("f")}
           and (
             ($4::int = 0 and f.type_frais = 'SCOLARITE')
             or (f.type_frais = 'SCOLARITE'

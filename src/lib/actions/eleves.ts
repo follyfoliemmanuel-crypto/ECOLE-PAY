@@ -154,9 +154,10 @@ export async function creerEleve(
   revalidatePath("/app/eleves");
   revalidatePath("/app");
   return {
-    success: `${v.prenom} ${v.nom} a été ajouté. Ses échéances et ses frais ${
-      v.typeInscription === "ANCIEN" ? "de réinscription" : "d'inscription"
-    } sont prêts.`,
+    success:
+      v.typeInscription === "ANCIEN"
+        ? `${v.prenom} ${v.nom} a été ajouté. Ses échéances de scolarité sont prêtes : un ancien élève ne paie pas de frais d'inscription.`
+        : `${v.prenom} ${v.nom} a été ajouté. Ses échéances et ses frais d'inscription sont prêts.`,
   };
 }
 

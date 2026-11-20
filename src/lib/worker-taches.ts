@@ -11,6 +11,7 @@ import {
 import { construirePdfBulletin } from "./pdf-bulletin";
 import type { Trimestre } from "./types";
 import { envoyerBulletinWhatsApp } from "./whatsapp-cloud";
+import { validerChamp } from "./validation";
 
 /**
  * Cœur du worker de la file d'attente.
@@ -76,6 +77,10 @@ async function journaliserBulletin(
   statut: "ENVOYE" | "ECHEC",
   erreur: string | null,
 ): Promise<void> {
+  if (!ecoleId || !charge.eleve_id || !charge.annee || !charge.trimestre) {
+    throw new Error("Paramètres obligatoires manquants pour journalisation.");
+  }
+
   await sql(
     `update bulletin_envois
         set statut = $4,
@@ -100,6 +105,10 @@ async function traiterBulletin(tache: Tache): Promise<void> {
   if (!tache.ecole_id) throw new Error("École absente de la tâche.");
   const charge = lireCharge(tache.charge);
   if (!charge) throw new Error("Charge de tâche invalide.");
+
+  // Valider les données avant traitement
+  const validationEleve = await validerChamp(tache.ecole_id, z.string().uuid());
+  if (!validationEleve.succes) throw new Error("ID école invalide.");
 
   const eleve = await uneLigne<{ classe_id: string }>(
     `select coalesce(i.classe_id, e.classe_id) as classe_id

@@ -561,10 +561,10 @@ export default async function PageTableauDeBord({
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-ochre/20 bg-[#fbf6ea] px-4 py-3 sm:px-5">
           <div>
             <h2 className="text-[14px] font-semibold text-ink">
-              Inscriptions et réinscriptions
+              Frais d&apos;entrée des nouveaux élèves
             </h2>
             <p className="mt-0.5 text-[11.5px] text-muted">
-              Argent des frais d&apos;entrée, séparé de la scolarité
+              Séparés de la scolarité · les anciens élèves n&apos;en paient pas
             </p>
           </div>
           <span className="rounded-full border border-ochre/30 bg-surface px-2.5 py-0.5 text-[10.5px] font-medium text-[#7a5010]">
@@ -604,7 +604,7 @@ export default async function PageTableauDeBord({
               {inscriptions.elevesInscrits} / {inscriptions.totalEleves}
             </p>
             <p className="mt-0.5 text-[10.5px] text-muted">
-              inscription ou réinscription payée
+              inscription soldée ou élève ancien
             </p>
           </div>
           <div className="px-4 py-3.5">

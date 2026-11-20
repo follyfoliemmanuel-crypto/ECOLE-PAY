@@ -419,13 +419,21 @@ export default async function PageFicheEleve({
                       </td>
                       <td
                         className={`chiffre text-right text-[12.5px] ${
-                          ligne.reste > 0 ? "font-medium text-impaye" : "text-muted"
+                          ligne.reste > 0
+                            ? ligne.echue === false
+                              ? "text-muted"
+                              : "font-medium text-impaye"
+                            : "text-muted"
                         }`}
                       >
                         {formatNombre(ligne.reste)} F
                       </td>
                       <td>
-                        <BadgeStatut statut={ligne.statut} />
+                        {ligne.statut !== "PAYE" && ligne.echue === false ? (
+                          <Badge>À venir</Badge>
+                        ) : (
+                          <BadgeStatut statut={ligne.statut} />
+                        )}
                       </td>
                       <td className="text-right">
                         <div className="inline-flex items-center gap-2">
@@ -470,7 +478,7 @@ export default async function PageFicheEleve({
               <h2 className="flex items-center gap-2 text-[13.5px] font-semibold text-ink">
                 <ReceiptText size={14} className="text-[#7a5010]" aria-hidden />
                 {eleve.type_inscription === "ANCIEN"
-                  ? "Frais de réinscription"
+                  ? "Frais d'entrée"
                   : "Frais d'inscription"}
               </h2>
               <span className="text-[10px] font-medium uppercase tracking-[0.08em] text-muted">
@@ -479,7 +487,9 @@ export default async function PageFicheEleve({
             </div>
             {fraisEntree.length === 0 ? (
               <p className="px-4 py-4 text-[12px] text-muted">
-                Aucun frais d&apos;entrée sur cette année.
+                {eleve.type_inscription === "ANCIEN"
+                  ? "Aucun frais d'entrée : un ancien élève ne paie que sa scolarité."
+                  : "Aucun frais d'inscription sur cette année."}
               </p>
             ) : (
               <ul className="divide-y divide-line">

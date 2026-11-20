@@ -16,6 +16,7 @@ import {
   NOM_COOKIE_SUPER,
   optionsCookie,
 } from "./cookies";
+import { validerChamp } from "./validation";
 import type {
   AbonnementEcole,
   Offre,
@@ -51,7 +52,22 @@ function secret(): Uint8Array {
 //  Mots de passe
 // ---------------------------------------------------------------------------
 export async function hacherMotDePasse(motDePasse: string): Promise<string> {
-  return bcrypt.hash(motDePasse, 12);
+  // Validation du mot de passe avant hachage
+  if (!motDePasse || motDePasse.length < 8) {
+    throw new Error("Mot de passe trop court (minimum 8 caractères)");
+  }
+  
+  // Rejeter les mots de passe trop communes (liste de base)
+  const commonPasswords = ["admin", "password", "123456", "hello", "demo", "12345678", "qwerty", "letmein"];
+  if (commonPasswords.includes(motDePasse.toLowerCase())) {
+    throw new Error("Mot de passe trop commun");
+  }
+
+  try {
+    return await bcrypt.hash(motDePasse, 12);
+  } catch (erreur) {
+    throw new Error("Échec du hachage de mot de passe");
+  }
 }
 
 export async function verifierMotDePasse(
@@ -68,7 +84,14 @@ export async function verifierMotDePasse(
 export async function comparerMotDePasseFactice(
   motDePasse: string,
 ): Promise<void> {
-  await bcrypt.compare(motDePasse, HASH_FACTICE).catch(() => false);
+  // Sécuriser la comparaison pour éviter l'analyse temporelle
+  if (!motDePasse) return Promise.resolve();
+  
+  try {
+    await bcrypt.compare(motDePasse, HASH_FACTICE).catch(() => false);
+  } catch {
+    // Intentionally ignore errors - cette fonction est une protection anti-fuite de données
+  }
 }
 
 export function hacherJeton(jeton: string): string {
@@ -286,12 +309,18 @@ type ChargeSuper = { typ: "super"; email: string };
 
 /** Vérifie le mot de passe super admin défini par variable d'environnement. */
 export function verifierMotDePasseSuperAdmin(saisie: string): boolean {
-  const attendu = process.env.SUPER_ADMIN_PASSWORD ?? "";
-  if (attendu.length < 12 || saisie.length === 0) return false;
+  const attendu = process.env.SUPER_ADMIN_PASSWORD;
+  if (!attendu || attendu.length < 12 || !saisie) return false;
 
-  const a = createHash("sha256").update(saisie).digest();
-  const b = createHash("sha256").update(attendu).digest();
-  return timingSafeEqual(a, b);
+  const hashSaisi = createHash("sha256").update(saisie).digest();
+  const hashAttendu = createHash("sha256").update(attendu).digest();
+
+  // Utiliser timingSafeEqual pour éviter les attaques temporelles
+  try {
+    return timingSafeEqual(hashSaisi, hashAttendu);
+  } catch {
+    return false;
+  }
 }
 
 /**

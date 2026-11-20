@@ -1,5 +1,6 @@
 import { sql, uneLigne } from "../db";
 import type { Frequence, Paiement, StatutFrais } from "../types";
+import { echeanceDue } from "./echeances";
 
 export type ResumePeriode = {
   eleves: number;
@@ -145,6 +146,8 @@ export async function getDashboard(
           mois: new Date().getMonth() + 1,
         };
 
+  const dueF2 = echeanceDue("f2");
+
   const [resume, inscriptions, classes, impayes, serie, derniersPaiements, recettesLignes] =
     await Promise.all([
       uneLigne<ResumePeriode>(
@@ -164,6 +167,7 @@ export async function getDashboard(
                          or (f2.frequence_paiement = $3 and f2.periode = $4)
                        )
                        and f2.reste > 0
+                       and ${dueF2}
                   )
                 )::int as payes,
                 count(distinct e.id) filter (
@@ -190,6 +194,7 @@ export async function getDashboard(
                          or (f2.frequence_paiement = $3 and f2.periode = $4)
                        )
                        and f2.reste > 0
+                       and ${dueF2}
                   )
                 )::int as partiels,
                 count(distinct e.id) filter (
@@ -203,6 +208,7 @@ export async function getDashboard(
                          $4::int = 0
                          or (f2.frequence_paiement = $3 and f2.periode = $4)
                        )
+                       and ${dueF2}
                   )
                   and not exists (
                     select 1 from frais f2
@@ -235,10 +241,28 @@ export async function getDashboard(
                 coalesce(sum(f.montant_paye), 0)::int as encaisse,
                 coalesce(sum(f.reste), 0)::int as restant,
                 count(*) filter (where f.statut = 'PAYE')::int as payes,
-                count(*) filter (where f.statut <> 'PAYE')::int as "enAttente",
-                count(distinct f.eleve_id)::int as "totalEleves",
-                count(distinct f.eleve_id) filter (where f.statut = 'PAYE')::int
-                  as "elevesInscrits"
+                count(distinct f.eleve_id) filter (where f.statut <> 'PAYE')::int
+                  as "enAttente",
+                (select count(*)::int
+                   from eleves e2
+                  where e2.ecole_id = $1
+                    and e2.annee_scolaire = $2
+                    and e2.statut = 'actif') as "totalEleves",
+                -- Un ancien élève n'a aucun frais d'entrée : il compte comme
+                -- inscrit. Un nouveau l'est dès que sa ligne est soldée.
+                (select count(*)::int
+                   from eleves e2
+                  where e2.ecole_id = $1
+                    and e2.annee_scolaire = $2
+                    and e2.statut = 'actif'
+                    and not exists (
+                      select 1 from frais f2
+                       where f2.eleve_id = e2.id
+                         and f2.ecole_id = $1
+                         and f2.annee_scolaire = $2
+                         and f2.type_frais in ('INSCRIPTION', 'REINSCRIPTION')
+                         and f2.reste > 0
+                    )) as "elevesInscrits"
            from frais f
            join eleves e on e.id = f.eleve_id
           where f.ecole_id = $1
@@ -260,6 +284,7 @@ export async function getDashboard(
                        and f2.type_frais = 'SCOLARITE'
                        and ($4::int = 0 or (f2.frequence_paiement = $3 and f2.periode = $4))
                        and f2.reste > 0
+                       and ${dueF2}
                   )
                 )::int as payes,
                 count(distinct e.id) filter (
@@ -280,6 +305,7 @@ export async function getDashboard(
                        and f2.type_frais = 'SCOLARITE'
                        and ($4::int = 0 or (f2.frequence_paiement = $3 and f2.periode = $4))
                        and f2.reste > 0
+                       and ${dueF2}
                   )
                 )::int as partiels,
                 count(distinct e.id) filter (
@@ -290,6 +316,7 @@ export async function getDashboard(
                        and f2.annee_scolaire = $2
                        and f2.type_frais = 'SCOLARITE'
                        and ($4::int = 0 or (f2.frequence_paiement = $3 and f2.periode = $4))
+                       and ${dueF2}
                   )
                   and not exists (
                     select 1 from frais f2
@@ -338,6 +365,7 @@ export async function getDashboard(
             and f.annee_scolaire = $2
             and f.statut <> 'PAYE'
             and e.statut = 'actif'
+            and ${echeanceDue("f")}
             and (
               ($4::int = 0 and f.type_frais = 'SCOLARITE')
               or ($4::int > 0 and f.type_frais = 'SCOLARITE'

@@ -491,24 +491,10 @@ export function NouvelleClasse({ classes = [] }: { classes?: Classe[] }) {
             />
             {suffixe}
           </div>
-          <p className="aide">Pour un nouvel élève. Laissez 0 si gratuit.</p>
-        </div>
-        <div>
-          <label className="label" htmlFor="frais-reinscription">
-            Frais de réinscription
-          </label>
-          <div className="relative">
-            <input
-              id="frais-reinscription"
-              name="frais_reinscription"
-              inputMode="numeric"
-              placeholder="0"
-              className="input pr-14"
-              autoComplete="off"
-            />
-            {suffixe}
-          </div>
-          <p className="aide">Pour un ancien élève. Laissez 0 si gratuit.</p>
+          <p className="aide">
+            Payés une fois, par les nouveaux élèves uniquement. Laissez 0 si
+            gratuit.
+          </p>
         </div>
       </div>
 
@@ -676,21 +662,9 @@ export function ModifierClasse({
                 />
                 {suffixe}
               </div>
-            </div>
-            <div>
-              <label className="label" htmlFor={`reinscription-${classe.id}`}>
-                Frais de réinscription
-              </label>
-              <div className="relative">
-                <input
-                  id={`reinscription-${classe.id}`}
-                  name="frais_reinscription"
-                  inputMode="numeric"
-                  defaultValue={classe.frais_reinscription}
-                  className="input pr-14"
-                />
-                {suffixe}
-              </div>
+              <p className="aide">
+                Payés une fois, par les nouveaux élèves uniquement.
+              </p>
             </div>
           </div>
 

@@ -481,11 +481,17 @@ export default async function PageElevePortail({
                       <span
                         className={cx(
                           "chiffre shrink-0 text-[12px] font-semibold",
-                          echeance.reste > 0 ? "text-impaye" : "text-paye",
+                          echeance.reste > 0
+                            ? echeance.echue
+                              ? "text-impaye"
+                              : "text-muted"
+                            : "text-paye",
                         )}
                       >
                         {echeance.reste > 0
-                          ? `${formatFCFA(echeance.reste)} restant`
+                          ? echeance.echue
+                            ? `${formatFCFA(echeance.reste)} restant`
+                            : "À venir"
                           : "Soldé"}
                       </span>
                     </li>

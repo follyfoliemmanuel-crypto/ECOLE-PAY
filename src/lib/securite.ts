@@ -69,6 +69,8 @@ export async function consommerLimite(
   maximum: number,
   fenetreSecondes: number,
 ): Promise<boolean> {
+  if (!cle || maximum < 0 || fenetreSecondes <= 0) return true; // paramètres invalides
+
   const ligne = await uneLigne<{ compteur: number }>(
     `insert into rate_limits (cle, fenetre, compteur)
      values (

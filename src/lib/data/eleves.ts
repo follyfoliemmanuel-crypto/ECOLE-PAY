@@ -110,12 +110,20 @@ export async function listerFraisEleve(
   annee: string,
 ): Promise<FraisPeriode[]> {
   return sql<FraisPeriode>(
-    `select id, eleve_id, type_frais, frequence_paiement, periode,
-            tranche_id, libelle,
-            montant_du, montant_paye, reste, statut
-       from frais
-      where ecole_id = $1 and eleve_id = $2 and annee_scolaire = $3
-      order by case when type_frais = 'SCOLARITE' then 1 else 0 end, periode`,
+    `select f.id, f.eleve_id, f.type_frais, f.frequence_paiement, f.periode,
+            f.tranche_id, f.libelle,
+            f.montant_du, f.montant_paye, f.reste, f.statut,
+            coalesce(
+              date_echeance_frais(
+                f.type_frais, f.frequence_paiement, f.periode,
+                f.annee_scolaire, f.tranche_id, e.date_inscription
+              ) <= current_date,
+              true
+            ) as echue
+       from frais f
+       join eleves e on e.id = f.eleve_id
+      where f.ecole_id = $1 and f.eleve_id = $2 and f.annee_scolaire = $3
+      order by case when f.type_frais = 'SCOLARITE' then 1 else 0 end, f.periode`,
     [ecoleId, eleveId, annee],
   );
 }

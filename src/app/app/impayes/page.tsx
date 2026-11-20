@@ -101,8 +101,8 @@ export default async function PageImpayes({
         titre={frequence === "TRANCHES" ? "Impayés par tranche" : "Impayés de la période"}
         description={
           frequence === "TRANCHES"
-            ? "Les familles à relancer sur la tranche choisie, regroupées par classe. Chaque relance part sur WhatsApp avec le message prêt."
-            : "Les familles à relancer, regroupées par classe. Chaque relance part sur WhatsApp avec le message prêt."
+            ? "Les familles à relancer sur la tranche choisie, regroupées par classe. Seules les tranches dont la date limite est dépassée apparaissent ici."
+            : "Les familles à relancer, regroupées par classe. Une échéance n'apparaît qu'une fois sa date limite dépassée (le 5 du mois pour le mensuel)."
         }
         actions={
           <>
